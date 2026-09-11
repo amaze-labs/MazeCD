@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
+	"path"
+	"strings"
 )
 
 // Proxy returns a reverse proxy to this instance's /api/v1. The caller sets
@@ -21,6 +23,11 @@ func newProxy(c *Client) *httputil.ReverseProxy {
 			pr.Out.URL.Scheme = c.base.Scheme
 			pr.Out.URL.Host = c.base.Host
 			pr.Out.Host = c.base.Host
+			// Join the base path (if any) onto the request path, e.g.
+			// for an instance at https://host/argocd, prepend /argocd.
+			if c.base.Path != "" {
+				pr.Out.URL.Path = c.base.Path + pr.Out.URL.Path
+			}
 			// Never forward browser credentials upstream.
 			pr.Out.Header.Del("Cookie")
 			pr.Out.Header.Set("Authorization", "Bearer "+c.inst.Token)
@@ -51,7 +58,15 @@ func (r *Registry) ProxyHandler() http.Handler {
 			return
 		}
 		rest := req.PathValue("rest")
-		req.URL.Path = "/api/v1/" + rest
+		// Clean the path to resolve . and .. segments. Reject any path that
+		// escapes the /api/v1 prefix, including percent-encoded traversal
+		// attempts like %2e%2e which PathValue unescapes after mux routing.
+		p := path.Clean("/api/v1/" + rest)
+		if p != "/api/v1" && !strings.HasPrefix(p, "/api/v1/") {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+		req.URL.Path = p
 		req.URL.RawPath = ""
 		c.Proxy().ServeHTTP(w, req)
 	})

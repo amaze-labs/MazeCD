@@ -97,3 +97,85 @@ func TestProxyUnreachableUpstreamReturns502(t *testing.T) {
 		t.Errorf("error body %q does not name the instance", rec.Body.String())
 	}
 }
+
+func TestProxyRejectsPercentEncodedPathTraversal(t *testing.T) {
+	upstreamCalled := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	reg, err := NewRegistry(&config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL, Token: "t"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	mount(reg).ServeHTTP(rec, httptest.NewRequest("GET", "/api/i/prod/%2e%2e/%2e%2e/admin", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+	if upstreamCalled {
+		t.Error("upstream was called for path traversal attempt; it should have been rejected")
+	}
+}
+
+func TestProxyPreservesInstanceBasePath(t *testing.T) {
+	var got *http.Request
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Clone(r.Context())
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	reg, err := NewRegistry(&config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL + "/argocd", Token: "t"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	mount(reg).ServeHTTP(rec, httptest.NewRequest("GET", "/api/i/prod/applications", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if got.URL.Path != "/argocd/api/v1/applications" {
+		t.Errorf("upstream path = %q, want /argocd/api/v1/applications", got.URL.Path)
+	}
+}
+
+func TestProxyDeletesAllCookieHeaders(t *testing.T) {
+	var got *http.Request
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Clone(r.Context())
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	reg, err := NewRegistry(&config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL, Token: "t"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", "/api/i/prod/applications", nil)
+	// Manually add multiple Cookie header lines (as the browser would send them)
+	req.Header.Add("Cookie", "session=abc123")
+	req.Header.Add("Cookie", "prefs=dark_mode")
+	rec := httptest.NewRecorder()
+	mount(reg).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if got.Header.Get("Cookie") != "" {
+		t.Errorf("upstream Cookie header = %q, want empty", got.Header.Get("Cookie"))
+	}
+}
