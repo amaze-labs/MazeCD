@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useAppDetail, useResourceTree } from '../api/queries'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
 import { Tabs } from '../components/Tabs'
 import { Tree } from '../components/Tree'
 import { StatusDot } from '../components/StatusDot'
+import { SyncSheet } from '../components/SyncSheet'
+import { refreshApp, terminateOperation } from '../api/actions'
 import { DiffTab } from './tabs/DiffTab'
 import { EventsTab } from './tabs/EventsTab'
 import { ManifestTab } from './tabs/ManifestTab'
@@ -20,6 +23,31 @@ export function AppDetailScreen() {
 
   const status = detail.data?.status
   const op = status?.operationState
+
+  const qc = useQueryClient()
+  const instances = useInstances()
+  const meta = (instances.data ?? []).find((i) => i.name === instance)
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [selection, setSelection] = useState<ResourceNode[]>([])
+  const [actionError, setActionError] = useState('')
+  const running = op?.phase === 'Running'
+
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['app', instance, name] }),
+      qc.invalidateQueries({ queryKey: ['tree', instance, name] }),
+      qc.invalidateQueries({ queryKey: ['apps'] }),
+    ])
+
+  async function act(fn: () => Promise<unknown>) {
+    setActionError('')
+    try {
+      await fn()
+      await invalidate()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   return (
     <div>
@@ -44,14 +72,63 @@ export function AppDetailScreen() {
         {status?.health?.message && (
           <p className="mt-2 text-xs text-[#f4c030]">{status.health.message}</p>
         )}
-        {/* The action bar is added in Task 14 (sync, refresh) and Task 16
-            (history, delete). */}
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => setSyncOpen(true)}
+            disabled={running}
+            className="h-11 flex-1 rounded-lg bg-accent font-medium text-bg disabled:opacity-40"
+          >
+            Sync
+          </button>
+          <button
+            onClick={() => act(() => refreshApp(instance, name, false))}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              void act(() => refreshApp(instance, name, true))
+            }}
+            className="h-11 flex-1 rounded-lg border border-border"
+            title="Long press or right click for a hard refresh"
+          >
+            Refresh
+          </button>
+          {running && (
+            <button
+              onClick={() => act(() => terminateOperation(instance, name))}
+              className="h-11 flex-1 rounded-lg border border-[#e96d76] text-[#e96d76]"
+            >
+              Terminate
+            </button>
+          )}
+        </div>
+        {actionError && <p className="mt-2 text-xs text-[#e96d76]">{actionError}</p>}
+        {/* Task 16 adds history and delete to this action bar. */}
       </header>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
       {tab === 'Tree' && (
-        <Tree nodes={tree.data?.nodes ?? []} onSelect={setSelected} />
+        <>
+          {selection.length > 0 && (
+            <div className="flex items-center justify-between border-b border-border px-4 py-2 text-sm">
+              <span>{selection.length} selected for sync</span>
+              <button className="text-accent" onClick={() => setSelection([])}>
+                Clear
+              </button>
+            </div>
+          )}
+          <Tree
+            nodes={tree.data?.nodes ?? []}
+            onSelect={setSelected}
+            selection={selection}
+            onToggleSelect={(n) =>
+              setSelection((cur) =>
+                cur.some((c) => c.kind === n.kind && c.name === n.name && c.namespace === n.namespace)
+                  ? cur.filter((c) => !(c.kind === n.kind && c.name === n.name && c.namespace === n.namespace))
+                  : [...cur, n],
+              )
+            }
+          />
+        </>
       )}
       {tab === 'Diff' && <DiffTab instance={instance} name={name} />}
       {tab === 'Events' && <EventsTab instance={instance} name={name} />}
@@ -63,6 +140,16 @@ export function AppDetailScreen() {
           selected: {selected.kind}/{selected.name}
         </div>
       )}
+
+      <SyncSheet
+        open={syncOpen}
+        onClose={() => setSyncOpen(false)}
+        instance={instance}
+        instanceColor={meta?.color ?? '#8b93a7'}
+        name={name}
+        production={meta?.production ?? false}
+        selection={selection}
+      />
     </div>
   )
 }

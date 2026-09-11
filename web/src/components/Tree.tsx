@@ -27,9 +27,13 @@ function build(nodes: ResourceNode[]): TreeNode[] {
 export function Tree({
   nodes,
   onSelect,
+  selection = [],
+  onToggleSelect,
 }: {
   nodes: ResourceNode[]
   onSelect: (n: ResourceNode) => void
+  selection?: ResourceNode[]
+  onToggleSelect?: (n: ResourceNode) => void
 }) {
   const roots = useMemo(() => build(nodes), [nodes])
 
@@ -44,6 +48,17 @@ export function Tree({
           className="size-2 shrink-0 rounded-full"
           style={{ background: healthColor(n.health?.status ?? '') }}
         />
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={selection.some(
+              (s) => s.kind === n.kind && s.name === n.name && s.namespace === n.namespace,
+            )}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => onToggleSelect(n)}
+            className="size-4 shrink-0 accent-[#6ea8fe]"
+          />
+        )}
         <span className="w-28 shrink-0 truncate text-xs text-muted">{n.kind}</span>
         <span className="min-w-0 flex-1 truncate text-sm">{n.name}</span>
       </button>
