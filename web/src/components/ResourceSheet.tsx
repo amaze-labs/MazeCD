@@ -43,7 +43,7 @@ export function ResourceSheet({
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-full border px-3 py-1.5 text-sm ${
+            className={`flex min-h-11 items-center rounded-full border px-3 text-sm ${
               tab === t ? 'border-accent text-accent' : 'border-border text-muted'
             }`}
           >
@@ -124,13 +124,13 @@ function Logs({ instance, app, node }: { instance: string; app: string; node: Re
           value={container}
           onChange={(e) => setContainer(e.target.value)}
           placeholder="container (optional)"
-          className="h-10 flex-1 rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-accent"
+          className="h-11 flex-1 rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-accent"
         />
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="filter"
-          className="h-10 flex-1 rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-accent"
+          className="h-11 flex-1 rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-accent"
         />
       </div>
       {error && <p className="mt-2 text-sm text-[#e96d76]">{error}</p>}
