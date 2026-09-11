@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0b0e14;
+  --color-surface: #131823;
+  --color-surface-2: #1b2130;
+  --color-border: #263041;
+  --color-text: #e6ebf4;
+  --color-muted: #8b93a7;
+  --color-accent: #6ea8fe;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+  /* Keep the layout stable under the iOS keyboard and address bar. */
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe areas for the standalone PWA on notched phones. */
+.pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+.pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
