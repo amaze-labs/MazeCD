@@ -99,12 +99,6 @@ func runServe() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
 
 	names := make([]string, 0, len(cfg.Instances))
 	for _, i := range cfg.Instances {
@@ -112,10 +106,37 @@ func runServe() error {
 	}
 	slog.Info("mazecd starting", "version", version, "listen", cfg.Listen, "instances", names)
 
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	return serve(srv, ctx, srv.ListenAndServe)
+}
+
+// serve runs listenAndServe (srv.ListenAndServe in production) until ctx is
+// cancelled, then waits for srv's graceful shutdown to actually finish before
+// returning.
+//
+// Shutdown closes the listener immediately, which is exactly what makes
+// ListenAndServe return http.ErrServerClosed -- long before Shutdown's own
+// poll loop has waited out active connections. Returning as soon as
+// ListenAndServe does (the previous bug here) lets the process exit while a
+// response is still being written -- fatal for the pod log streams this
+// server deliberately leaves without a WriteTimeout.
+func serve(srv *http.Server, ctx context.Context, listenAndServe func() error) error {
+	shutdownErr := make(chan error, 1)
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		shutdownErr <- srv.Shutdown(shutdownCtx)
+	}()
+
+	if err := listenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		// The server never shut down cleanly (e.g. the port was already in
+		// use), so ctx may never be cancelled and the goroutine above may
+		// never fire. Waiting on shutdownErr here could block forever.
 		return err
 	}
-	return nil
+	// listenAndServe only returns ErrServerClosed once Shutdown has been
+	// called, so the goroutine above is guaranteed to send.
+	return <-shutdownErr
 }
 
 func envOr(key, fallback string) string {
