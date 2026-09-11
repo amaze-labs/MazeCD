@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -47,6 +48,18 @@ func readPassword() (string, error) {
 		fmt.Fprintln(os.Stderr)
 		return string(b), err
 	}
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	return strings.TrimRight(line, "\r\n"), err
+	return readPasswordFromReader(os.Stdin)
+}
+
+// readPasswordFromReader reads a password from r, handling both newline-terminated
+// and EOF-terminated input. It returns io.EOF as nil since EOF is a valid end-of-input
+// marker when we've already read data.
+func readPasswordFromReader(r io.Reader) (string, error) {
+	line, err := bufio.NewReader(r).ReadString('\n')
+	line = strings.TrimRight(line, "\r\n")
+	if err == io.EOF {
+		// EOF is OK as long as we have some data
+		return line, nil
+	}
+	return line, err
 }
