@@ -6,7 +6,7 @@
 
 **Architecture:** One Go binary serves both the API and the embedded PWA from the same origin. It reads instances from a mounted YAML config (tokens via `${ENV}` expansion), reverse-proxies authenticated browser requests to each instance's `/api/v1/*` with the instance token injected, and adds one hand-written fan-out endpoint for the aggregated application list. The frontend is a React SPA polling adaptively through TanStack Query.
 
-**Tech Stack:** Go 1.27 (stdlib `net/http`, `net/http/httputil`, `embed`; `gopkg.in/yaml.v3`, `golang.org/x/crypto/bcrypt`, `github.com/go-webauthn/webauthn`), React 19 + Vite + TypeScript + Tailwind v4 + TanStack Query + `vite-plugin-pwa`, Vitest, Docker multi-stage on `distroless/static`.
+**Tech Stack:** Go 1.27 (stdlib `net/http`, `net/http/httputil`, `embed`; `gopkg.in/yaml.v3`, `golang.org/x/crypto/bcrypt`), React 19 + Vite + TypeScript + Tailwind v4 + TanStack Query + `vite-plugin-pwa`, Vitest, Docker multi-stage on `distroless/static`.
 
 **Spec:** `docs/superpowers/specs/2026-09-11-mazecd-pwa-design.md`
 
@@ -16,7 +16,7 @@
 - The backend is **single-user**. No users table, no RBAC, no tenancy.
 - Instance tokens are **never** sent to the browser and never logged. `/api/instances` returns name, color, production flag and reachability only.
 - The `Authorization` header arriving from the browser is always discarded by the proxy and replaced with the instance token.
-- Every `/api/*` route except `/api/auth/login`, `/api/auth/passkey/login/*` and `/api/version` requires a valid session, returning `401` otherwise.
+- Every `/api/*` route except `/api/auth/login`, `/api/auth/logout` and `/api/version` requires a valid session, returning `401` otherwise. Logout is exempt deliberately: it must be able to clear a corrupted or expired cookie.
 - Config is read **once at startup**. A missing `${VAR}` is a fatal startup error naming the variable.
 - No caching of ArgoCD responses anywhere: no server-side cache, `Cache-Control: no-store` on `/api/*`, `NetworkOnly` in the service worker.
 - `index.html`, `manifest.webmanifest` and the service worker are served `no-store`; only `/assets/*` (hashed filenames) are `public, max-age=31536000, immutable`.
@@ -40,8 +40,6 @@
 | `internal/auth/session.go` | signed token issue/verify, cookie, sliding-renewal middleware |
 | `internal/auth/ratelimit.go` | per-IP login attempt limiter |
 | `internal/auth/handler.go` | `/api/auth/login`, `/logout`, `/me` |
-| `internal/auth/state.go` | `state.json` atomic read/write (passkeys only) |
-| `internal/auth/passkey.go` | WebAuthn registration and login ceremonies |
 | `internal/argocd/client.go` | per-instance HTTP client, TLS config, token injection, registry |
 | `internal/argocd/proxy.go` | per-instance reverse proxy, streaming-safe |
 | `internal/argocd/apps.go` | fan-out aggregated app list, partial failures |
@@ -60,10 +58,10 @@
 | `src/lib/sync.ts` | sync options → `SyncRequest` payload (unit tested) |
 | `src/lib/update.ts` | service-worker update checks and version comparison |
 | `src/lib/status.ts` | health/sync → color and icon |
-| `src/screens/Login.tsx` | password and passkey login |
+| `src/screens/Login.tsx` | password login |
 | `src/screens/Apps.tsx` | aggregated list, filters, search, pull-to-refresh |
 | `src/screens/AppDetail.tsx` | header, action bar, tabs |
-| `src/screens/Settings.tsx` | instances, passkeys, build version, logout |
+| `src/screens/Settings.tsx` | instances, build version, logout |
 | `src/components/Tree.tsx` | resource tree |
 | `src/components/ResourceSheet.tsx` | logs, events, manifest, delete/restart |
 | `src/components/SyncSheet.tsx` | sync options form |
@@ -76,6 +74,8 @@
 |---|---|
 | `docker/Dockerfile` | node build → go build → distroless/static |
 | `docker/compose.yaml` | local run with config and secrets |
+| `.github/workflows/release.yml` | multi-arch image build and publish on merge to main |
+| `.github/scripts/next-version.sh` | next semver from the conventional commits since the last tag |
 | `config.example.yaml` | documented sample config |
 | `README.md` | setup, env vars, token creation, deploy |
 
@@ -5237,8 +5237,6 @@ export function Settings() {
         </ul>
       </section>
 
-      {/* The passkey section is added in Task 19. */}
-
       <section className="p-4">
         <h2 className="text-sm font-medium text-muted">About</h2>
         <p className="mt-2 text-sm">
@@ -5357,7 +5355,7 @@ git commit -m "feat(web): settings screen, offline banner and three-layer update
 
 **Interfaces:**
 - Consumes: the whole application.
-- Produces: image `mazecd:dev` listening on 8080, `/data` writable by the `nonroot` user.
+- Produces: image `mazecd:dev` listening on 8080. MazeCD holds no state on disk — config and secrets come in through the environment and a read-only mount — so the image needs no writable directory and the container needs no volume.
 
 - [ ] **Step 1: Generate the icons**
 
@@ -5406,13 +5404,9 @@ COPY internal ./internal
 COPY --from=web /src/internal/web/dist ./internal/web/dist
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/mazecd ./cmd/mazecd
-# Created here so the image ships /data owned by nonroot: a named volume
-# mounted there inherits that ownership and the state file stays writable.
-RUN mkdir -p /out/data && chown 65532:65532 /out/data
 
 FROM gcr.io/distroless/static:nonroot
 COPY --from=build /out/mazecd /mazecd
-COPY --from=build --chown=65532:65532 /out/data /data
 USER nonroot:nonroot
 EXPOSE 8080
 ENTRYPOINT ["/mazecd"]
@@ -5462,20 +5456,13 @@ services:
       - "8080:8080"
     environment:
       MAZECD_CONFIG: /etc/mazecd/config.yaml
-      MAZECD_STATE: /data/state.json
       MAZECD_PASSWORD_HASH: ${MAZECD_PASSWORD_HASH:?run "mazecd hash" and export it}
       MAZECD_SESSION_KEY: ${MAZECD_SESSION_KEY:?run "openssl rand -base64 32" and export it}
-      MAZECD_RP_ID: ${MAZECD_RP_ID:-localhost}
-      MAZECD_ORIGIN: ${MAZECD_ORIGIN:-http://localhost:8080}
       ARGOCD_TOKEN_PROD: ${ARGOCD_TOKEN_PROD:-}
       ARGOCD_TOKEN_DEV: ${ARGOCD_TOKEN_DEV:-}
     volumes:
       - ../config.yaml:/etc/mazecd/config.yaml:ro
-      - mazecd-data:/data
     restart: unless-stopped
-
-volumes:
-  mazecd-data:
 ```
 
 - [ ] **Step 6: Write the README**
@@ -5560,9 +5547,6 @@ Open http://localhost:8080 and sign in.
 | `MAZECD_CONFIG` | no | `/etc/mazecd/config.yaml` | configuration file |
 | `MAZECD_PASSWORD_HASH` | yes | — | bcrypt hash from `mazecd hash` |
 | `MAZECD_SESSION_KEY` | yes | — | base64, ≥32 bytes, signs session cookies |
-| `MAZECD_STATE` | no | `/data/state.json` | passkey storage |
-| `MAZECD_RP_ID` | for passkeys | — | the hostname MazeCD is served from |
-| `MAZECD_ORIGIN` | for passkeys | — | full origin, e.g. `https://mazecd.example.com` |
 | `ARGOCD_TOKEN_*` | per instance | — | referenced from the config as `${VAR}` |
 
 Rotating a token or adding an instance means updating the config or secret and
@@ -5570,9 +5554,14 @@ restarting the process: configuration is read once at startup.
 
 ## Serve it over HTTPS
 
-The session cookie is `Secure`, and both the service worker and passkeys
-require a secure context. `http://localhost` counts as secure for development;
-anywhere else, put MazeCD behind TLS.
+The session cookie is `Secure` and the service worker requires a secure
+context. `http://localhost` counts as secure for development; anywhere else,
+put MazeCD behind TLS.
+
+Do not expose MazeCD to the internet behind a proxy that hides the client
+address without first adding trusted-proxy handling: login rate limiting keys
+on the connecting address, so every client would share one bucket of five
+attempts per fifteen minutes.
 
 ## Development
 
@@ -5590,7 +5579,8 @@ Run the backend with `MAZECD_CONFIG`, `MAZECD_PASSWORD_HASH` and
 
 No push notifications, no watch streams (it polls every 8 seconds in the
 foreground), no ApplicationSet/Project/Repository administration, no
-multi-user support, and no terminal into pods.
+multi-user support, no terminal into pods, and no passkeys — the session lasts
+90 days and renews itself, so a login is a twice-a-year event.
 ````
 
 - [ ] **Step 7: Build and run the image**
@@ -5623,590 +5613,225 @@ git commit -m "feat(docker): single-image build, compose stack and documentation
 
 ---
 
-### Task 19: Passkey login
+### Task 19: Release workflow — multi-arch image on every merge to main
 
 **Files:**
-- Create: `internal/auth/state.go`, `internal/auth/passkey.go`
-- Modify: `cmd/mazecd/main.go` (wire the passkey handler), `web/src/screens/Login.tsx` (passkey button), `web/src/screens/Settings.tsx` (passkey management)
-- Test: `internal/auth/state_test.go`, plus manual browser verification of the ceremonies
+- Create: `.github/workflows/release.yml`, `.github/scripts/next-version.sh`
+- Modify: `docker/Dockerfile` (cross-compilation), `README.md` (a Releases section)
+- Test: run the version script against the real repository history
 
 **Interfaces:**
-- Consumes: `*Sessions` (Task 3), `server.Options.Passkeys` (Task 9).
-- Produces: `auth.OpenStore(path string) (*Store, error)`, `(*Store).List() []Passkey`, `(*Store).Credentials() []webauthn.Credential`, `(*Store).Add(name string, c webauthn.Credential) error`, `(*Store).Delete(id string) error`, `(*Store).Update(c webauthn.Credential) error`, `auth.NewPasskeys(store *Store, sessions *Sessions, rpID, origin string) (*Passkeys, error)`, `(*Passkeys).Mount(mux *http.ServeMux)`.
+- Consumes: `docker/Dockerfile` and the `VERSION` build arg from Task 18.
+- Produces: `ghcr.io/amaze-labs/mazecd:vX.Y.Z` and `:latest` for `linux/amd64` and `linux/arm64`, plus a matching git tag, on every push to `main`.
 
-- [ ] **Step 1: Write the failing store test**
+Registry: GHCR, because `GITHUB_TOKEN` authenticates to it with no secret to configure. Swapping to another registry is three lines in the workflow.
 
-Create `internal/auth/state_test.go`:
+Versioning rule, exactly as specified: a breaking change (`type!:` or a `BREAKING CHANGE` body) bumps major, a `feat:` bumps minor, and **everything else is a patch** — fixes, chores, docs, refactors, a commit with no conventional prefix at all. There is no "no release" case: every push to `main` publishes.
 
-```go
-package auth
+- [ ] **Step 1: Make the Dockerfile cross-compile instead of emulating**
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
+The image must build for two architectures. Emulating an entire `npm ci` + `go build` under QEMU for arm64 costs roughly ten times a native build. Go cross-compiles natively, and the PWA is architecture-independent, so both builder stages should run on the runner's own architecture and only the final stage varies.
 
-	"github.com/go-webauthn/webauthn/webauthn"
-)
+In `docker/Dockerfile`, pin both builder stages to the build platform and let the Go build target the requested architecture:
 
-func TestStoreRoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	s, err := OpenStore(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(s.List()) != 0 {
-		t.Fatal("a fresh store must be empty")
-	}
-
-	cred := webauthn.Credential{ID: []byte{1, 2, 3}, PublicKey: []byte{9, 9}}
-	if err := s.Add("iPhone", cred); err != nil {
-		t.Fatal(err)
-	}
-	if got := s.List(); len(got) != 1 || got[0].Name != "iPhone" {
-		t.Fatalf("List() = %+v", got)
-	}
-
-	reopened, err := OpenStore(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(reopened.Credentials()) != 1 {
-		t.Fatal("the passkey did not survive a reopen")
-	}
-
-	id := reopened.List()[0].ID
-	if err := reopened.Delete(id); err != nil {
-		t.Fatal(err)
-	}
-	if len(reopened.List()) != 0 {
-		t.Fatal("Delete did not remove the passkey")
-	}
-
-	entries, err := os.ReadDir(filepath.Dir(path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Errorf("expected only state.json in the directory, found %d entries", len(entries))
-	}
-}
-
-func TestStoreDeleteUnknownID(t *testing.T) {
-	s, err := OpenStore(filepath.Join(t.TempDir(), "state.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Delete("nope"); err == nil {
-		t.Error("expected an error deleting an unknown passkey")
-	}
-}
+```dockerfile
+FROM --platform=$BUILDPLATFORM node:26-alpine AS web
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+```dockerfile
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
+```
+
+and in the build stage, declare the target and use it:
+
+```dockerfile
+ARG VERSION=dev
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath \
+      -ldflags "-s -w -X main.version=${VERSION}" -o /out/mazecd ./cmd/mazecd
+```
+
+`BUILDPLATFORM` and `TARGETARCH` are supplied by BuildKit; no other stage changes.
+
+- [ ] **Step 2: Verify both architectures actually build**
 
 ```bash
-go get github.com/go-webauthn/webauthn
-go test ./internal/auth/ -run Store
+docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile --build-arg VERSION=test .
 ```
 
-Expected: FAIL — undefined: `OpenStore`.
+Expected: both platforms succeed. Confirm the Go build ran natively rather than under emulation — the arm64 leg should take about as long as the amd64 one, not minutes longer.
 
-- [ ] **Step 3: Implement the state store**
+- [ ] **Step 3: Write the version script**
 
-Create `internal/auth/state.go`:
-
-```go
-package auth
-
-import (
-	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
-	"sync"
-	"time"
-
-	"github.com/go-webauthn/webauthn/webauthn"
-)
-
-// Passkey is one registered WebAuthn credential.
-type Passkey struct {
-	ID         string              `json:"id"`
-	Name       string              `json:"name"`
-	CreatedAt  time.Time           `json:"createdAt"`
-	Credential webauthn.Credential `json:"credential"`
-}
-
-// Store is the whole persistent state of MazeCD: registered passkeys and
-// nothing else. Instance tokens come from the mounted configuration.
-type Store struct {
-	path string
-	mu   sync.Mutex
-	data struct {
-		Passkeys []Passkey `json:"passkeys"`
-	}
-}
-
-// OpenStore loads the state file, treating a missing file as empty state.
-func OpenStore(path string) (*Store, error) {
-	s := &Store{path: path}
-	raw, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return s, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("read state: %w", err)
-	}
-	if err := json.Unmarshal(raw, &s.data); err != nil {
-		return nil, fmt.Errorf("parse state %s: %w", path, err)
-	}
-	return s, nil
-}
-
-// List returns the registered passkeys.
-func (s *Store) List() []Passkey {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]Passkey, len(s.data.Passkeys))
-	copy(out, s.data.Passkeys)
-	return out
-}
-
-// Credentials returns the credentials in the shape go-webauthn expects.
-func (s *Store) Credentials() []webauthn.Credential {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]webauthn.Credential, 0, len(s.data.Passkeys))
-	for _, p := range s.data.Passkeys {
-		out = append(out, p.Credential)
-	}
-	return out
-}
-
-// Add registers a new passkey.
-func (s *Store) Add(name string, c webauthn.Credential) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if name == "" {
-		name = "passkey"
-	}
-	s.data.Passkeys = append(s.data.Passkeys, Passkey{
-		ID:         base64.RawURLEncoding.EncodeToString(c.ID),
-		Name:       name,
-		CreatedAt:  time.Now().UTC(),
-		Credential: c,
-	})
-	return s.save()
-}
-
-// Update stores an updated credential, keeping the signature counter current.
-func (s *Store) Update(c webauthn.Credential) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id := base64.RawURLEncoding.EncodeToString(c.ID)
-	for i := range s.data.Passkeys {
-		if s.data.Passkeys[i].ID == id {
-			s.data.Passkeys[i].Credential = c
-			return s.save()
-		}
-	}
-	return fmt.Errorf("unknown passkey %s", id)
-}
-
-// Delete removes a passkey by its identifier.
-func (s *Store) Delete(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i, p := range s.data.Passkeys {
-		if p.ID == id {
-			s.data.Passkeys = append(s.data.Passkeys[:i], s.data.Passkeys[i+1:]...)
-			return s.save()
-		}
-	}
-	return fmt.Errorf("unknown passkey %s", id)
-}
-
-// save writes atomically: a crash mid-write must not leave a truncated file
-// that locks the owner out of their own passkeys.
-func (s *Store) save() error {
-	raw, err := json.MarshalIndent(s.data, "", "  ")
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(s.path)
-	tmp, err := os.CreateTemp(dir, ".state-*.tmp")
-	if err != nil {
-		return fmt.Errorf("write state: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(raw); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), s.path)
-}
-```
-
-- [ ] **Step 4: Run it to verify it passes**
-
-Run: `go test ./internal/auth/ -run Store -v`
-Expected: PASS.
-
-- [ ] **Step 5: Implement the ceremonies**
-
-Create `internal/auth/passkey.go`:
-
-```go
-package auth
-
-import (
-	"errors"
-	"net/http"
-	"sync"
-	"time"
-
-	"github.com/go-webauthn/webauthn/webauthn"
-)
-
-// singleUser is the one account MazeCD has. The ID is fixed: there is no user
-// table to allocate from.
-type singleUser struct{ store *Store }
-
-func (u singleUser) WebAuthnID() []byte                         { return []byte("mazecd") }
-func (u singleUser) WebAuthnName() string                       { return "mazecd" }
-func (u singleUser) WebAuthnDisplayName() string                { return "MazeCD" }
-func (u singleUser) WebAuthnCredentials() []webauthn.Credential { return u.store.Credentials() }
-
-// Passkeys serves the WebAuthn registration and login ceremonies.
-type Passkeys struct {
-	wa       *webauthn.WebAuthn
-	store    *Store
-	sessions *Sessions
-
-	mu      sync.Mutex
-	pending map[string]pendingCeremony
-}
-
-type pendingCeremony struct {
-	data    *webauthn.SessionData
-	expires time.Time
-}
-
-// NewPasskeys requires the exact RP ID (hostname) and origin the PWA is served
-// from; WebAuthn rejects any mismatch.
-func NewPasskeys(store *Store, sessions *Sessions, rpID, origin string) (*Passkeys, error) {
-	if rpID == "" || origin == "" {
-		return nil, errors.New("passkeys need MAZECD_RP_ID and MAZECD_ORIGIN")
-	}
-	wa, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "MazeCD",
-		RPID:          rpID,
-		RPOrigins:     []string{origin},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &Passkeys{wa: wa, store: store, sessions: sessions, pending: map[string]pendingCeremony{}}, nil
-}
-
-// Mount registers the passkey routes. Registration requires an existing
-// session; login does not, since that is its purpose.
-func (p *Passkeys) Mount(mux *http.ServeMux) {
-	mux.Handle("POST /api/auth/passkey/register/begin", p.sessions.Require(http.HandlerFunc(p.registerBegin)))
-	mux.Handle("POST /api/auth/passkey/register/finish", p.sessions.Require(http.HandlerFunc(p.registerFinish)))
-	mux.HandleFunc("POST /api/auth/passkey/login/begin", p.loginBegin)
-	mux.HandleFunc("POST /api/auth/passkey/login/finish", p.loginFinish)
-	mux.Handle("GET /api/auth/passkey", p.sessions.Require(http.HandlerFunc(p.list)))
-	mux.Handle("DELETE /api/auth/passkey/{id}", p.sessions.Require(http.HandlerFunc(p.delete)))
-}
-
-func (p *Passkeys) put(key string, data *webauthn.SessionData) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	now := time.Now()
-	for k, v := range p.pending {
-		if now.After(v.expires) {
-			delete(p.pending, k)
-		}
-	}
-	p.pending[key] = pendingCeremony{data: data, expires: now.Add(5 * time.Minute)}
-}
-
-func (p *Passkeys) take(key string) (*webauthn.SessionData, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	c, ok := p.pending[key]
-	delete(p.pending, key)
-	if !ok || time.Now().After(c.expires) {
-		return nil, false
-	}
-	return c.data, true
-}
-
-func (p *Passkeys) registerBegin(w http.ResponseWriter, r *http.Request) {
-	options, sessionData, err := p.wa.BeginRegistration(singleUser{p.store})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	p.put("register", sessionData)
-	writeJSON(w, options.Response)
-}
-
-func (p *Passkeys) registerFinish(w http.ResponseWriter, r *http.Request) {
-	sessionData, ok := p.take("register")
-	if !ok {
-		http.Error(w, "registration expired, start again", http.StatusBadRequest)
-		return
-	}
-	cred, err := p.wa.FinishRegistration(singleUser{p.store}, *sessionData, r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := p.store.Add(r.URL.Query().Get("name"), *cred); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (p *Passkeys) loginBegin(w http.ResponseWriter, r *http.Request) {
-	if len(p.store.Credentials()) == 0 {
-		http.Error(w, "no passkey registered", http.StatusNotFound)
-		return
-	}
-	options, sessionData, err := p.wa.BeginLogin(singleUser{p.store})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	p.put("login", sessionData)
-	writeJSON(w, options.Response)
-}
-
-func (p *Passkeys) loginFinish(w http.ResponseWriter, r *http.Request) {
-	sessionData, ok := p.take("login")
-	if !ok {
-		http.Error(w, "login expired, start again", http.StatusBadRequest)
-		return
-	}
-	cred, err := p.wa.FinishLogin(singleUser{p.store}, *sessionData, r)
-	if err != nil {
-		http.Error(w, "passkey rejected", http.StatusUnauthorized)
-		return
-	}
-	// Keep the signature counter current so a cloned authenticator is detectable.
-	_ = p.store.Update(*cred)
-	tok, exp := p.sessions.Issue(time.Now())
-	p.sessions.SetCookie(w, tok, exp)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (p *Passkeys) list(w http.ResponseWriter, r *http.Request) {
-	type item struct {
-		ID        string    `json:"id"`
-		Name      string    `json:"name"`
-		CreatedAt time.Time `json:"createdAt"`
-	}
-	out := []item{}
-	for _, k := range p.store.List() {
-		out = append(out, item{ID: k.ID, Name: k.Name, CreatedAt: k.CreatedAt})
-	}
-	writeJSON(w, out)
-}
-
-func (p *Passkeys) delete(w http.ResponseWriter, r *http.Request) {
-	if err := p.store.Delete(r.PathValue("id")); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-```
-
-`writeJSON` comes from `handler.go` in the same package.
-
-- [ ] **Step 6: Wire it into startup**
-
-In `cmd/mazecd/main.go`, after building `sessions` and before `server.New`:
-
-```go
-	var passkeys *auth.Passkeys
-	statePath := envOr("MAZECD_STATE", "/data/state.json")
-	store, err := auth.OpenStore(statePath)
-	if err != nil {
-		return err
-	}
-	rpID, origin := os.Getenv("MAZECD_RP_ID"), os.Getenv("MAZECD_ORIGIN")
-	if rpID != "" && origin != "" {
-		passkeys, err = auth.NewPasskeys(store, sessions, rpID, origin)
-		if err != nil {
-			return err
-		}
-	} else {
-		slog.Warn("passkeys disabled: set MAZECD_RP_ID and MAZECD_ORIGIN to enable them")
-	}
-```
-
-and pass it in the options:
-
-```go
-	options := server.Options{
-		Registry:     registry,
-		Sessions:     sessions,
-		PasswordHash: passwordHash,
-		Version:      version,
-		Static:       static,
-	}
-	if passkeys != nil {
-		options.Passkeys = passkeys
-	}
-	handler := server.New(options)
-```
-
-A nil `*auth.Passkeys` must not be assigned to the interface field directly: a typed nil would pass the `!= nil` check in `server.New` and panic. The conditional assignment above is what prevents that.
-
-- [ ] **Step 7: Add the browser side**
+Create `.github/scripts/next-version.sh`:
 
 ```bash
-cd web && npm install @simplewebauthn/browser
+#!/usr/bin/env bash
+# Decides the next semantic version from the conventional commits since the
+# last tag. Breaking -> major, feat -> minor, EVERYTHING else -> patch.
+set -euo pipefail
+
+last="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"
+
+if [ -z "$last" ]; then
+  echo "version=v0.1.0"
+  exit 0
+fi
+
+log="$(git log --format='%s%n%b' "${last}..HEAD")"
+if [ -z "${log//[[:space:]]/}" ]; then
+  # Nothing new since the last tag: re-running a workflow must not publish again.
+  echo "version=${last}"
+  echo "skip=true"
+  exit 0
+fi
+
+version="${last#v}"
+major="${version%%.*}"
+rest="${version#*.}"
+minor="${rest%%.*}"
+patch="${rest#*.}"
+
+if grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' <<<"$log" || grep -qE '^BREAKING[ -]CHANGE' <<<"$log"; then
+  major=$((major + 1)); minor=0; patch=0
+elif grep -qE '^feat(\([^)]*\))?:' <<<"$log"; then
+  minor=$((minor + 1)); patch=0
+else
+  patch=$((patch + 1))
+fi
+
+echo "version=v${major}.${minor}.${patch}"
+echo "skip=false"
 ```
-
-In `web/src/screens/Login.tsx`, add below the form:
-
-```tsx
-import { startAuthentication } from '@simplewebauthn/browser'
-```
-
-```tsx
-  const [passkeyError, setPasskeyError] = useState('')
-
-  async function passkeyLogin() {
-    setPasskeyError('')
-    try {
-      const optionsJSON = await api.post<PublicKeyCredentialRequestOptionsJSON>(
-        '/api/auth/passkey/login/begin',
-      )
-      const assertion = await startAuthentication({ optionsJSON })
-      await api.post('/api/auth/passkey/login/finish', assertion)
-      window.location.reload()
-    } catch (e) {
-      setPasskeyError(e instanceof Error ? e.message : String(e))
-    }
-  }
-```
-
-with `import { api } from '../api/client'`, `import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'`, and the button:
-
-```tsx
-      <button onClick={passkeyLogin} className="text-sm text-accent">
-        Sign in with a passkey
-      </button>
-      {passkeyError && <p className="text-center text-xs text-muted">{passkeyError}</p>}
-```
-
-In `web/src/screens/Settings.tsx`, replace the passkey comment with:
-
-```tsx
-      <PasskeySection />
-```
-
-and add to the same file, merging the first import with the `useQuery` import already there:
-
-```tsx
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { startRegistration } from '@simplewebauthn/browser'
-import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
-
-function PasskeySection() {
-  const qc = useQueryClient()
-  const list = useQuery({
-    queryKey: ['passkeys'],
-    queryFn: () => api.get<{ id: string; name: string; createdAt: string }[]>('/api/auth/passkey'),
-    refetchInterval: false,
-  })
-
-  const register = useMutation({
-    mutationFn: async () => {
-      const optionsJSON = await api.post<PublicKeyCredentialCreationOptionsJSON>(
-        '/api/auth/passkey/register/begin',
-      )
-      const attestation = await startRegistration({ optionsJSON })
-      const name = encodeURIComponent(navigator.platform || 'this device')
-      await api.post(`/api/auth/passkey/register/finish?name=${name}`, attestation)
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['passkeys'] }),
-  })
-
-  const remove = useMutation({
-    mutationFn: (id: string) => api.del(`/api/auth/passkey/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['passkeys'] }),
-  })
-
-  return (
-    <section className="p-4">
-      <h2 className="text-sm font-medium text-muted">Passkeys</h2>
-      <ul className="mt-3 divide-y divide-border">
-        {(list.data ?? []).map((k) => (
-          <li key={k.id} className="flex items-center gap-3 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">{k.name}</p>
-              <p className="text-xs text-muted">{new Date(k.createdAt).toLocaleDateString()}</p>
-            </div>
-            <button onClick={() => remove.mutate(k.id)} className="text-sm text-[#e96d76]">
-              Remove
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button
-        onClick={() => register.mutate()}
-        disabled={register.isPending}
-        className="mt-3 h-12 w-full rounded-xl border border-accent text-sm text-accent disabled:opacity-40"
-      >
-        {register.isPending ? 'Waiting for the device…' : 'Add a passkey'}
-      </button>
-      {register.isError && (
-        <p className="mt-2 text-xs text-[#e96d76]">{String(register.error)}</p>
-      )}
-    </section>
-  )
-}
-```
-
-- [ ] **Step 8: Verify the ceremonies in a browser**
-
-Run the backend with `MAZECD_RP_ID=localhost` and `MAZECD_ORIGIN=http://localhost:5173` for the Vite dev server (the origin must match exactly).
-Expected: Settings → "Add a passkey" triggers the platform prompt and the key then appears in the list; signing out and using "Sign in with a passkey" authenticates with biometrics; removing the passkey makes the login button return "no passkey registered"; the passkey survives a backend restart (it is in `state.json`).
-
-- [ ] **Step 9: Run everything**
 
 ```bash
-go test ./... -race && go vet ./... && (cd web && npm test && npm run build)
+chmod +x .github/scripts/next-version.sh
 ```
 
-Expected: all green.
-
-- [ ] **Step 10: Commit**
+- [ ] **Step 4: Check the script against real history**
 
 ```bash
-git add internal/auth cmd/mazecd web
-git commit -m "feat(auth): passkey registration and login"
+./.github/scripts/next-version.sh
 ```
+
+Expected on a repository with no tags yet: `version=v0.1.0`.
+
+Then prove each branch of the rule, from a throwaway clone so the real repository is untouched:
+
+```bash
+tmp="$(mktemp -d)" && git clone -q . "$tmp" && cd "$tmp"
+git tag v1.2.3
+git commit -q --allow-empty -m "chore: tidy"        && ./.github/scripts/next-version.sh   # v1.2.4
+git commit -q --allow-empty -m "feat: add a thing"  && ./.github/scripts/next-version.sh   # v1.3.0
+git commit -q --allow-empty -m "feat!: break it"    && ./.github/scripts/next-version.sh   # v2.0.0
+```
+
+Also confirm a commit with no conventional prefix at all (`git commit --allow-empty -m "wip"`) produces a patch bump, since that is the stated rule, and that re-running with no new commits prints `skip=true`. Paste the actual output into the report.
+
+- [ ] **Step 5: Write the workflow**
+
+Create `.github/workflows/release.yml`:
+
+```yaml
+name: release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags and full history: the version decision needs both
+
+      - name: Decide the version
+        id: version
+        run: ./.github/scripts/next-version.sh >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        if: steps.version.outputs.skip != 'true'
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tag the release
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          git tag "${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+```
+
+The tag is pushed only after the image is published, so a failed build leaves no tag claiming a release that does not exist — and the next run recomputes the same version rather than skipping it.
+
+- [ ] **Step 6: Validate the workflow file**
+
+```bash
+python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/release.yml')); print('valid')"
+```
+
+Expected: `valid`. If `actionlint` is available, run it too and paste the output.
+
+- [ ] **Step 7: Document it**
+
+Add to `README.md`, after the Setup section:
+
+````markdown
+## Releases
+
+Every push to `main` builds and publishes a multi-architecture image to GHCR:
+
+```
+ghcr.io/amaze-labs/mazecd:vX.Y.Z   # immutable
+ghcr.io/amaze-labs/mazecd:latest
+```
+
+for `linux/amd64` and `linux/arm64`.
+
+The version comes from the conventional commits since the last tag: a breaking
+change (`feat!:`, or `BREAKING CHANGE` in the body) bumps the major, a `feat:`
+bumps the minor, and everything else — fixes, chores, docs, refactors, commits
+with no prefix — bumps the patch. The git tag is pushed only after the image
+has been published.
+
+The PWA updates itself: a running client notices the new build within a minute
+of the deployment, or immediately when it next comes to the foreground.
+````
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add .github docker/Dockerfile README.md
+git commit -m "ci: publish multi-arch images to GHCR with conventional-commit versioning"
+```
+
 
 ---
 

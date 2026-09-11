@@ -29,8 +29,8 @@ amministrare ArgoCD (repo, cluster, project, ApplicationSet), essere multi-utent
 | Credenziali ArgoCD | API token per-account | Long-lived, revocabili, RBAC dedicata, nessuna scadenza da gestire |
 | Registrazione istanze | File di config + env expansion | GitOps-friendly, token da secret Kubernetes |
 | Cifratura token a riposo | Nessuna (deliberata) | I token stanno già in un secret montato; cifrarli con una master key adiacente non aggiunge sicurezza |
-| Persistenza | Un file JSON | L'unico stato è la credenziale passkey |
-| Auth applicativa | Password bcrypt + passkey | Single-user, sessione lunga, nessuna dipendenza esterna |
+| Persistenza | Nessuna | Rinviata la passkey, non resta nulla da salvare: il processo è senza stato |
+| Auth applicativa | Password bcrypt, sessione da 90 giorni | Single-user, un login due volte l'anno, nessuna dipendenza esterna |
 | Aggiornamento dati | Polling adattivo | Semplice, batteria-friendly, backend stateless |
 | Stack | Go + React/Vite/TS/Tailwind | Binario singolo con statici embedded; ecosistema PWA maturo |
 | Deploy | Immagine Docker singola | Target immediato Docker, successivamente Kubernetes |
@@ -48,7 +48,7 @@ Browser (PWA)
   │  cookie di sessione httpOnly
   ▼
 MazeCD (Go, :8080)
-  ├── /api/auth/*              password, passkey, sessione
+  ├── /api/auth/*              password, sessione
   ├── /api/instances           nomi, colori, stato connessione (mai i token)
   ├── /api/apps                fan-out aggregato su tutte le istanze
   ├── /api/i/{istanza}/*  ───► {url}/api/v1/*  con Bearer token iniettato
@@ -131,9 +131,6 @@ Variabili d'ambiente:
 | `MAZECD_CONFIG` | no (default `/etc/mazecd/config.yaml`) | percorso config |
 | `MAZECD_PASSWORD_HASH` | sì | hash bcrypt della password, da `mazecd hash` |
 | `MAZECD_SESSION_KEY` | sì | chiave di firma dei cookie di sessione (32 byte base64) |
-| `MAZECD_STATE` | no (default `/data/state.json`) | stato passkey |
-| `MAZECD_RP_ID` | sì se si usa la passkey | hostname per WebAuthn |
-| `MAZECD_ORIGIN` | sì se si usa la passkey | origin completo servito, es. `https://mazecd.example.com` |
 | `ARGOCD_TOKEN_*` | secondo config | token delle istanze |
 
 ## 4. Autenticazione
@@ -156,21 +153,20 @@ Variabili d'ambiente:
    riautenticarsi mai.
 4. `POST /api/auth/logout` cancella il cookie.
 
-### 4.2 Passkey
+### 4.2 Passkey — rinviata
 
-Dopo il primo login si può registrare una passkey (`POST
-/api/auth/passkey/register/begin|finish`), così i login successivi usano
-Face ID / impronta (`/api/auth/passkey/login/begin|finish`). Le credenziali
-(credential ID, public key, sign count) vivono in `state.json`; la passkey si
-può cancellare dalle impostazioni.
+La passkey era prevista per sbloccare l'app con Face ID o impronta. È rinviata:
+con una sessione da 90 giorni che si rinnova da sola, il login è un evento
+semestrale, e non vale il costo di WebAuthn (ceremonies, RP ID e origin da
+configurare, credenziali da persistere) per accorciare qualcosa che già non
+succede quasi mai. Se un giorno servirà, il punto di innesto è `server.Options`.
 
-La password resta sempre valida come metodo di recupero.
+### 4.3 Nessuno stato su disco
 
-### 4.3 Stato persistente
-
-`state.json` è l'unico file scritto a runtime e contiene solo le credenziali
-passkey. Scritture atomiche (write su file temporaneo + rename). Perderlo
-significa solo dover rifare la registrazione della passkey.
+Con la passkey fuori, non resta niente da salvare: le istanze arrivano dal file
+di config montato, i token dalle variabili d'ambiente, l'hash della password e
+la chiave di firma dalle variabili d'ambiente. MazeCD non scrive mai su disco.
+Il container non ha bisogno di un volume e può girare read-only.
 
 ## 5. Aggiornamento della PWA
 
@@ -248,7 +244,7 @@ azioni delete e restart.
 azione di rollback.
 
 **Settings.** Istanze in sola lettura con esito del test di connessione e
-validità del token, gestione passkey, versione di build, logout.
+validità del token, versione di build, logout.
 
 ### 6.2 Guardrail
 
@@ -319,9 +315,14 @@ docker/               Dockerfile multi-stage, compose.yaml
 docs/superpowers/     spec e piani
 ```
 
-Immagine: build Node → build Go → `distroless/static`. Un binario con la PWA
-incorporata, circa 20 MB. Porta 8080, volume per `/data`, config e certificati
-montati read-only.
+Immagine: build Node → build Go → `distroless/static`, per `linux/amd64` e
+`linux/arm64`. Un binario con la PWA incorporata, circa 20 MB. Porta 8080,
+config e certificati montati read-only, nessun volume.
+
+Rilascio: ogni push su `main` pubblica l'immagine multi-arch su GHCR e il tag
+git corrispondente. La versione esce dai conventional commit dall'ultimo tag —
+breaking change → major, `feat:` → minor, **tutto il resto → patch** — e il tag
+viene spinto solo dopo che l'immagine è stata pubblicata.
 
 ## 10. Fuori scope in v1 (YAGNI)
 
@@ -332,6 +333,7 @@ Sono decisioni consapevoli, non dimenticanze:
   gestione delle subscription.
 - ApplicationSets, Projects, Repositories, Clusters (anche in sola lettura).
 - Multi-utente e RBAC applicativa.
+- Passkey / WebAuthn: rinviata, la sessione da 90 giorni la rende poco utile.
 - Terminal nei pod.
 - Cifratura applicativa dei token a riposo.
 - Hot-reload del config.
