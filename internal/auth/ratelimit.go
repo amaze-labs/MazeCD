@@ -9,10 +9,11 @@ import (
 // ponytail: one mutex and a map; the login endpoint of a single-user app will
 // never see the contention that would justify anything sharded.
 type Limiter struct {
-	mu     sync.Mutex
-	max    int
-	window time.Duration
-	hits   map[string][]time.Time
+	mu        sync.Mutex
+	max       int
+	window    time.Duration
+	hits      map[string][]time.Time
+	lastSweep time.Time
 }
 
 // NewLimiter allows max attempts per key per window.
@@ -31,10 +32,24 @@ func (l *Limiter) Allow(key string, now time.Time) bool {
 			kept = append(kept, t)
 		}
 	}
+
+	allowed := true
 	if len(kept) >= l.max {
 		l.hits[key] = kept
-		return false
+		allowed = false
+	} else {
+		l.hits[key] = append(kept, now)
 	}
-	l.hits[key] = append(kept, now)
-	return true
+
+	// Opportunistic sweep: delete empty entries once per window to prevent unbounded map growth.
+	if now.Sub(l.lastSweep) >= l.window {
+		for k, v := range l.hits {
+			if len(v) == 0 {
+				delete(l.hits, k)
+			}
+		}
+		l.lastSweep = now
+	}
+
+	return allowed
 }
