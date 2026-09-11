@@ -3,6 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 /**
  * Minimal pull-to-refresh: only arms at the very top of the page and only on
  * a downward drag past the threshold.
+ *
+ * Listeners are registered once (empty effect deps) and read/write refs
+ * rather than closing over `pull`/`refreshing`/`onRefresh` state, so a fast
+ * flick can't have its `touchend` land in a stale closure from a
+ * listener re-subscription that hasn't caught up with the latest drag yet.
+ * `pull`/`refreshing` state stays only for what the UI renders.
+ *
  * ponytail: 40 lines of touch handling instead of a gesture library; revisit
  * only if horizontal gestures are ever added.
  */
@@ -10,6 +17,12 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
   const [pull, setPull] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const start = useRef<number | null>(null)
+  const pullRef = useRef(0)
+  const refreshingRef = useRef(false)
+  const onRefreshRef = useRef(onRefresh)
+  useEffect(() => {
+    onRefreshRef.current = onRefresh
+  }, [onRefresh])
 
   useEffect(() => {
     const threshold = 70
@@ -20,17 +33,22 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
     const onMove = (e: TouchEvent) => {
       if (start.current === null) return
       const delta = e.touches[0].clientY - start.current
-      setPull(delta > 0 ? Math.min(delta, threshold * 1.5) : 0)
+      const next = delta > 0 ? Math.min(delta, threshold * 1.5) : 0
+      pullRef.current = next
+      setPull(next)
     }
     const onEnd = async () => {
-      const armed = pull >= threshold
+      const armed = pullRef.current >= threshold
       start.current = null
+      pullRef.current = 0
       setPull(0)
-      if (!armed || refreshing) return
+      if (!armed || refreshingRef.current) return
+      refreshingRef.current = true
       setRefreshing(true)
       try {
-        await onRefresh()
+        await onRefreshRef.current()
       } finally {
+        refreshingRef.current = false
         setRefreshing(false)
       }
     }
@@ -43,7 +61,7 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onEnd)
     }
-  }, [pull, refreshing, onRefresh])
+  }, [])
 
   return { pull, refreshing }
 }

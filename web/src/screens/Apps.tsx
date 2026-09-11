@@ -40,7 +40,7 @@ export function Apps() {
   }, [apps.data, filter])
 
   const chip = (active: boolean) =>
-    `shrink-0 rounded-full border px-3 py-1.5 text-sm ${
+    `flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm ${
       active ? 'border-accent text-accent' : 'border-border text-muted'
     }`
 
@@ -58,7 +58,7 @@ export function Apps() {
           value={filter.q}
           onChange={(e) => setFilter({ ...filter, q: e.target.value })}
           placeholder="Search"
-          className="mt-3 h-10 w-full rounded-lg border border-border bg-surface px-3 outline-none focus:border-accent"
+          className="mt-3 h-11 w-full rounded-lg border border-border bg-surface px-3 outline-none focus:border-accent"
         />
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           <button className={chip(filter.broken)} onClick={() => setFilter({ ...filter, broken: !filter.broken })}>
