@@ -32,8 +32,13 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         // ArgoCD state is never cached: a stale sync status shown as current
-        // is an operational hazard, not a convenience.
-        runtimeCaching: [{ urlPattern: /^\/api\//, handler: 'NetworkOnly' }],
+        // is an operational hazard, not a convenience. Workbox's RegExpRoute
+        // matches against the full url.href, not just the pathname, so an
+        // anchored `/^\/api\//` regex here would never match `https://...`
+        // and silently never fire.
+        runtimeCaching: [
+          { urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' },
+        ],
         cleanupOutdatedCaches: true,
       },
     }),
