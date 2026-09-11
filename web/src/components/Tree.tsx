@@ -39,29 +39,37 @@ export function Tree({
 
   const render = (n: TreeNode, depth: number) => (
     <div key={`${n.group ?? ''}/${n.kind}/${n.namespace}/${n.name}`}>
-      <button
-        onClick={() => onSelect(n)}
-        className="flex min-h-11 w-full items-center gap-2 border-b border-border px-4 py-2.5 text-left active:bg-surface-2"
+      {/* The checkbox and the select button are siblings, not nested: a
+          <button> may not contain interactive content like a checkbox. */}
+      <div
+        className="flex min-h-11 w-full items-center border-b border-border pr-4"
         style={{ paddingLeft: `${1 + depth * 0.9}rem` }}
       >
-        <span
-          className="size-2 shrink-0 rounded-full"
-          style={{ background: healthColor(n.health?.status ?? '') }}
-        />
         {onToggleSelect && (
-          <input
-            type="checkbox"
-            checked={selection.some(
-              (s) => s.kind === n.kind && s.name === n.name && s.namespace === n.namespace,
-            )}
-            onClick={(e) => e.stopPropagation()}
-            onChange={() => onToggleSelect(n)}
-            className="size-4 shrink-0 accent-[#6ea8fe]"
-          />
+          <label className="flex h-11 w-11 shrink-0 items-center justify-center">
+            <input
+              type="checkbox"
+              checked={selection.some(
+                (s) => s.kind === n.kind && s.name === n.name && s.namespace === n.namespace,
+              )}
+              onChange={() => onToggleSelect(n)}
+              className="size-5 accent-[#6ea8fe]"
+              aria-label={`Select ${n.name} for sync`}
+            />
+          </label>
         )}
-        <span className="w-28 shrink-0 truncate text-xs text-muted">{n.kind}</span>
-        <span className="min-w-0 flex-1 truncate text-sm">{n.name}</span>
-      </button>
+        <button
+          onClick={() => onSelect(n)}
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left active:bg-surface-2"
+        >
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{ background: healthColor(n.health?.status ?? '') }}
+          />
+          <span className="w-28 shrink-0 truncate text-xs text-muted">{n.kind}</span>
+          <span className="min-w-0 flex-1 truncate text-sm">{n.name}</span>
+        </button>
+      </div>
       {n.children.map((c) => render(c, depth + 1))}
     </div>
   )

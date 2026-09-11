@@ -7,6 +7,7 @@ import { Tree } from '../components/Tree'
 import { StatusDot } from '../components/StatusDot'
 import { SyncSheet } from '../components/SyncSheet'
 import { refreshApp, terminateOperation } from '../api/actions'
+import { isProductionGuard } from '../lib/instanceGuard'
 import { DiffTab } from './tabs/DiffTab'
 import { EventsTab } from './tabs/EventsTab'
 import { ManifestTab } from './tabs/ManifestTab'
@@ -27,6 +28,9 @@ export function AppDetailScreen() {
   const qc = useQueryClient()
   const instances = useInstances()
   const meta = (instances.data ?? []).find((i) => i.name === instance)
+  // Unknown instance metadata (still loading, or resolved with no match) is
+  // treated as production: the guardrail must fail closed, not open.
+  const production = isProductionGuard(instances.data, instance)
   const [syncOpen, setSyncOpen] = useState(false)
   const [selection, setSelection] = useState<ResourceNode[]>([])
   const [actionError, setActionError] = useState('')
@@ -75,7 +79,7 @@ export function AppDetailScreen() {
         <div className="mt-3 flex gap-2">
           <button
             onClick={() => setSyncOpen(true)}
-            disabled={running}
+            disabled={running || !instances.data}
             className="h-11 flex-1 rounded-lg bg-accent font-medium text-bg disabled:opacity-40"
           >
             Sync
@@ -147,7 +151,7 @@ export function AppDetailScreen() {
         instance={instance}
         instanceColor={meta?.color ?? '#8b93a7'}
         name={name}
-        production={meta?.production ?? false}
+        production={production}
         selection={selection}
       />
     </div>

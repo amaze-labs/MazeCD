@@ -37,6 +37,22 @@ export function SyncSheet({
   const [busy, setBusy] = useState(false)
   const qc = useQueryClient()
 
+  // Closing via the backdrop or × (not just a successful run) must not leave
+  // the next open showing stale toggles or landing straight on the
+  // production confirmation panel. Reset exactly on the open->false edge —
+  // adjusted during render (see "you might not need an effect") rather than
+  // in a useEffect, so it happens in the same commit and never re-fires
+  // while the sheet stays open.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) {
+      setConfirming(false)
+      setOpts(defaultSyncOptions())
+      setError('')
+    }
+  }
+
   const needsConfirm = production && !opts.dryRun
 
   async function run() {
