@@ -6,6 +6,7 @@ import { Tabs } from '../components/Tabs'
 import { Tree } from '../components/Tree'
 import { StatusDot } from '../components/StatusDot'
 import { SyncSheet } from '../components/SyncSheet'
+import { ResourceSheet } from '../components/ResourceSheet'
 import { refreshApp, terminateOperation } from '../api/actions'
 import { isProductionGuard } from '../lib/instanceGuard'
 import { DiffTab } from './tabs/DiffTab'
@@ -138,11 +139,14 @@ export function AppDetailScreen() {
       {tab === 'Events' && <EventsTab instance={instance} name={name} />}
       {tab === 'Manifest' && <ManifestTab instance={instance} name={name} />}
 
-      {/* The resource sheet for `selected` is added in Task 15. */}
       {selected && (
-        <div className="p-4 text-xs text-muted">
-          selected: {selected.kind}/{selected.name}
-        </div>
+        <ResourceSheet
+          node={selected}
+          instance={instance}
+          instanceColor={meta?.color ?? '#8b93a7'}
+          app={name}
+          onClose={() => setSelected(null)}
+        />
       )}
 
       <SyncSheet
