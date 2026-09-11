@@ -145,9 +145,10 @@ Variabili d'ambiente:
 2. In caso di successo, cookie di sessione: `httpOnly`, `Secure`,
    `SameSite=Lax`, `Path=/`, JWT (HS256) firmato con `MAZECD_SESSION_KEY`,
    scadenza 90 giorni.
-3. Rinnovo scorrevole: se la sessione ha più di 24 ore di vita residua consumata,
-   il cookie viene riemesso ad ogni richiesta autenticata. Aprire l'app almeno
-   una volta ogni 90 giorni significa non riautenticarsi mai.
+3. Rinnovo scorrevole: ad ogni richiesta autenticata, se il token è stato
+   emesso più di 24 ore prima, viene riemesso con scadenza a 90 giorni dal
+   momento attuale. Aprire l'app almeno una volta ogni 90 giorni significa non
+   riautenticarsi mai.
 4. `POST /api/auth/logout` cancella il cookie.
 
 ### 4.2 Passkey
@@ -214,10 +215,23 @@ testuale. Pull-to-refresh. Banner per le istanze non raggiungibili.
 
 Action bar sticky: Sync, Refresh (tap lungo → Hard refresh), History, Delete.
 
-**Sync sheet.** Revision (default `HEAD`), toggle `prune`, `force`, `replace`,
-`dry-run`, `apply-only`, retry, e selezione opzionale del sottoinsieme di
-risorse da sincronizzare. Se un sync è in corso, il pulsante diventa
-"Terminate".
+**Sync sheet.** Revision (default `HEAD`), i toggle sotto elencati, retry, e
+selezione opzionale del sottoinsieme di risorse da sincronizzare. Se un sync è
+in corso, il pulsante diventa "Terminate".
+
+Mapping esatto verso `POST /api/v1/applications/{name}/sync` — è il punto in cui
+un errore di traduzione produce un effetto distruttivo non voluto, quindi è
+vincolante e coperto da test:
+
+| Toggle UI | Campo della SyncRequest |
+|---|---|
+| Prune | `prune: true` |
+| Dry run | `dryRun: true` |
+| Force | `strategy.apply.force: true` (oppure `strategy.hook.force` se gli hook non sono saltati) |
+| Replace | `syncOptions: ["Replace=true"]` |
+| Salta gli hook | `strategy.apply` invece di `strategy.hook` |
+| Risorse selezionate | `resources: [{group, kind, name, namespace}]` |
+| Retry | `retryStrategy` |
 
 **Resource sheet** (bottom sheet aprendo un nodo del tree). Log in streaming con
 scelta del container e filtro testuale, eventi della risorsa, manifest,
@@ -279,8 +293,9 @@ Go:
 
 Frontend:
 
-- Mapping delle opzioni della sync sheet → payload dell'API ArgoCD (unico punto
-  dove un errore produce un effetto distruttivo non voluto).
+- Mapping delle opzioni della sync sheet → payload della SyncRequest, secondo la
+  tabella in 6.1 (unico punto dove un errore produce un effetto distruttivo non
+  voluto).
 
 Nessun framework e2e in v1.
 
