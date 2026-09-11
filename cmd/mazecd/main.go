@@ -3,26 +3,126 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"golang.org/x/term"
 
+	"github.com/amaze-labs/MazeCD/internal/argocd"
 	"github.com/amaze-labs/MazeCD/internal/auth"
+	"github.com/amaze-labs/MazeCD/internal/config"
+	"github.com/amaze-labs/MazeCD/internal/server"
+	"github.com/amaze-labs/MazeCD/internal/web"
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "hash" {
-		if err := runHash(); err != nil {
-			fmt.Fprintln(os.Stderr, "mazecd hash:", err)
-			os.Exit(1)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "hash":
+			if err := runHash(); err != nil {
+				fmt.Fprintln(os.Stderr, "mazecd hash:", err)
+				os.Exit(1)
+			}
+			return
+		case "serve":
+			// default
+		default:
+			fmt.Fprintln(os.Stderr, "usage: mazecd [serve|hash]")
+			os.Exit(2)
 		}
-		return
 	}
-	fmt.Fprintln(os.Stderr, "usage: mazecd [hash]")
-	os.Exit(2)
+	if err := runServe(); err != nil {
+		fmt.Fprintln(os.Stderr, "mazecd:", err)
+		os.Exit(1)
+	}
+}
+
+// version is set at build time with -ldflags "-X main.version=...".
+var version = "dev"
+
+func runServe() error {
+	cfgPath := envOr("MAZECD_CONFIG", "/etc/mazecd/config.yaml")
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return err
+	}
+	passwordHash := os.Getenv("MAZECD_PASSWORD_HASH")
+	if passwordHash == "" {
+		return errors.New("MAZECD_PASSWORD_HASH is not set; generate one with: mazecd hash")
+	}
+	rawKey := os.Getenv("MAZECD_SESSION_KEY")
+	if rawKey == "" {
+		return errors.New("MAZECD_SESSION_KEY is not set; generate one with: openssl rand -base64 32")
+	}
+	key, err := base64.StdEncoding.DecodeString(rawKey)
+	if err != nil {
+		return fmt.Errorf("MAZECD_SESSION_KEY must be base64: %w", err)
+	}
+	sessions, err := auth.NewSessions(key)
+	if err != nil {
+		return err
+	}
+	registry, err := argocd.NewRegistry(cfg)
+	if err != nil {
+		return err
+	}
+	static, err := web.Handler()
+	if err != nil {
+		return err
+	}
+
+	handler := server.New(server.Options{
+		Registry:     registry,
+		Sessions:     sessions,
+		PasswordHash: passwordHash,
+		Version:      version,
+		Static:       static,
+	})
+
+	srv := &http.Server{
+		Addr:              cfg.Listen,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		// No WriteTimeout: pod log streaming is a long-lived response.
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+	}()
+
+	names := make([]string, 0, len(cfg.Instances))
+	for _, i := range cfg.Instances {
+		names = append(names, i.Name)
+	}
+	slog.Info("mazecd starting", "version", version, "listen", cfg.Listen, "instances", names)
+
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 // runHash prints a bcrypt hash for a password read from the terminal or stdin,
