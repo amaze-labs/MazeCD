@@ -37,7 +37,7 @@ export function Tree({
     <div key={`${n.group ?? ''}/${n.kind}/${n.namespace}/${n.name}`}>
       <button
         onClick={() => onSelect(n)}
-        className="flex w-full items-center gap-2 border-b border-border px-4 py-2.5 text-left active:bg-surface-2"
+        className="flex min-h-11 w-full items-center gap-2 border-b border-border px-4 py-2.5 text-left active:bg-surface-2"
         style={{ paddingLeft: `${1 + depth * 0.9}rem` }}
       >
         <span
