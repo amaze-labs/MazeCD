@@ -14,6 +14,7 @@ export function EventsTab({ instance, name }: { instance: string; name: string }
   )
 
   if (q.isLoading) return <p className="p-4 text-sm text-muted">Loading events…</p>
+  if (q.isError) return <p className="p-4 text-sm text-[#e96d76]">{String(q.error)}</p>
   if (items.length === 0) return <p className="p-8 text-center text-sm text-muted">No events.</p>
 
   return (

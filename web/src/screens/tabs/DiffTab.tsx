@@ -3,10 +3,25 @@ import { createTwoFilesPatch } from 'diff'
 import { api, argoPath } from '../../api/client'
 import type { ManagedResource } from '../../api/types'
 
-const pretty = (raw: string) => {
+/** Sort object keys recursively so equivalent states compare equal regardless
+ * of key order. Array order is left alone: it is semantically meaningful in
+ * Kubernetes manifests (container lists, env lists, volume mounts). */
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize)
+  if (value !== null && typeof value === 'object') {
+    const sorted: Record<string, unknown> = {}
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = canonicalize((value as Record<string, unknown>)[key])
+    }
+    return sorted
+  }
+  return value
+}
+
+export const pretty = (raw: string) => {
   if (!raw) return ''
   try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
+    return JSON.stringify(canonicalize(JSON.parse(raw)), null, 2)
   } catch {
     return raw
   }
