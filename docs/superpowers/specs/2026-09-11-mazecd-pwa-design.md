@@ -30,7 +30,7 @@ amministrare ArgoCD (repo, cluster, project, ApplicationSet), essere multi-utent
 | Registrazione istanze | File di config + env expansion | GitOps-friendly, token da secret Kubernetes |
 | Cifratura token a riposo | Nessuna (deliberata) | I token stanno già in un secret montato; cifrarli con una master key adiacente non aggiunge sicurezza |
 | Persistenza | Un file JSON | L'unico stato è la credenziale passkey |
-| Auth applicativa | Password argon2id + passkey | Single-user, sessione lunga, nessuna dipendenza esterna |
+| Auth applicativa | Password bcrypt + passkey | Single-user, sessione lunga, nessuna dipendenza esterna |
 | Aggiornamento dati | Polling adattivo | Semplice, batteria-friendly, backend stateless |
 | Stack | Go + React/Vite/TS/Tailwind | Binario singolo con statici embedded; ecosistema PWA maturo |
 | Deploy | Immagine Docker singola | Target immediato Docker, successivamente Kubernetes |
@@ -129,22 +129,27 @@ Variabili d'ambiente:
 | Variabile | Obbligatoria | Uso |
 |---|---|---|
 | `MAZECD_CONFIG` | no (default `/etc/mazecd/config.yaml`) | percorso config |
-| `MAZECD_PASSWORD_HASH` | sì | hash argon2id della password, da `mazecd hash` |
+| `MAZECD_PASSWORD_HASH` | sì | hash bcrypt della password, da `mazecd hash` |
 | `MAZECD_SESSION_KEY` | sì | chiave di firma dei cookie di sessione (32 byte base64) |
 | `MAZECD_STATE` | no (default `/data/state.json`) | stato passkey |
 | `MAZECD_RP_ID` | sì se si usa la passkey | hostname per WebAuthn |
+| `MAZECD_ORIGIN` | sì se si usa la passkey | origin completo servito, es. `https://mazecd.example.com` |
 | `ARGOCD_TOKEN_*` | secondo config | token delle istanze |
 
 ## 4. Autenticazione
 
 ### 4.1 Login
 
-1. `POST /api/auth/login {password}` → verifica argon2id contro
+1. `POST /api/auth/login {password}` → verifica bcrypt (cost 12) contro
    `MAZECD_PASSWORD_HASH` (confronto a tempo costante), rate limit 5 tentativi
-   per 15 minuti per IP.
+   per 15 minuti per IP. bcrypt e non argon2id: due chiamate a
+   `golang.org/x/crypto/bcrypt` invece di ~60 righe di encoding e parsing
+   scritte a mano, che è esattamente il codice in cui è facile sbagliare in
+   silenzio.
 2. In caso di successo, cookie di sessione: `httpOnly`, `Secure`,
-   `SameSite=Lax`, `Path=/`, JWT (HS256) firmato con `MAZECD_SESSION_KEY`,
-   scadenza 90 giorni.
+   `SameSite=Lax`, `Path=/`, token opaco firmato in HMAC-SHA256 su `iat|exp`
+   con `MAZECD_SESSION_KEY`, scadenza 90 giorni. Non un JWT: nessuna
+   negoziazione di algoritmo da sbagliare e nessuna dipendenza.
 3. Rinnovo scorrevole: ad ogni richiesta autenticata, se il token è stato
    emesso più di 24 ore prima, viene riemesso con scadenza a 90 giorni dal
    momento attuale. Aprire l'app almeno una volta ogni 90 giorni significa non
@@ -201,8 +206,10 @@ muscolare.
 
 ### 6.1 Schermate
 
-**Apps (home).** Lista aggregata virtualizzata di tutte le app di tutte le
-istanze. Ogni riga: nome, badge colorato dell'istanza, health e sync, indicatore
+**Apps (home).** Lista aggregata di tutte le app di tutte le istanze
+(nessuna virtualizzazione in v1: qualche centinaio di righe si rende senza
+problemi su un telefono, e `@tanstack/react-virtual` si inserisce dietro lo
+stesso componente se serve). Ogni riga: nome, badge colorato dell'istanza, health e sync, indicatore
 di operazione in corso. Filtri per istanza, health, sync e project, più ricerca
 testuale. Pull-to-refresh. Banner per le istanze non raggiungibili.
 
