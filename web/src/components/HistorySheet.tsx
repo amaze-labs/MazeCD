@@ -37,6 +37,7 @@ export function HistorySheet({
         api.get<{ author?: string; date?: string; message?: string }>(
           argoPath(instance, `applications/${name}/revisions/${h.revision}/metadata`),
         ),
+      enabled: open,
       refetchInterval: false,
       retry: false,
     })),
