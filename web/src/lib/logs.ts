@@ -31,6 +31,16 @@ export async function streamLogs(args: {
     throw new Error(`log stream failed: ${res.status} ${await res.text()}`)
   }
 
+  const handleLine = (raw: string) => {
+    if (!raw.trim()) return
+    try {
+      const parsed = JSON.parse(raw) as { result?: { content?: string } }
+      if (parsed.result?.content !== undefined) args.onLine(parsed.result.content)
+    } catch {
+      args.onLine(raw)
+    }
+  }
+
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -40,14 +50,10 @@ export async function streamLogs(args: {
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
-    for (const raw of lines) {
-      if (!raw.trim()) continue
-      try {
-        const parsed = JSON.parse(raw) as { result?: { content?: string } }
-        if (parsed.result?.content !== undefined) args.onLine(parsed.result.content)
-      } catch {
-        args.onLine(raw)
-      }
-    }
+    for (const raw of lines) handleLine(raw)
   }
+  // The server can close the connection mid-record (e.g. the pod restarts):
+  // whatever is left in `buffer` is the last line, just without its
+  // trailing newline. Run it through the same path rather than dropping it.
+  handleLine(buffer)
 }

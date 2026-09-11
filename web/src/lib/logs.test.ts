@@ -27,6 +27,40 @@ function stubFetch(body: ReadableStream<Uint8Array>) {
   )
 }
 
+/**
+ * A ReadableStream that errors as soon as `signal` fires, mirroring what a
+ * real aborted fetch body does. Paired with a `fetch` stub that honours
+ * `init.signal`, this is what actually exercises `streamLogs`' abort wiring
+ * — unlike a stub that ignores its arguments.
+ */
+function streamAbortableOn(chunks: string[], signal: AbortSignal): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder()
+  let i = 0
+  return new ReadableStream({
+    start(controller) {
+      signal.addEventListener('abort', () => controller.error(new DOMException('aborted', 'AbortError')))
+    },
+    pull(controller) {
+      if (i >= chunks.length) {
+        controller.close()
+        return
+      }
+      controller.enqueue(encoder.encode(chunks[i]))
+      i++
+    },
+  })
+}
+
+function stubAbortableFetch(chunks: string[]) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError')
+      return new Response(streamAbortableOn(chunks, init!.signal!))
+    }),
+  )
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -53,7 +87,16 @@ describe('streamLogs', () => {
     expect(lines).toEqual(['not json at all', 'ok'])
   })
 
-  test('stops reading once its signal aborts', async () => {
+  test('a trailing line without a newline is still delivered once the stream ends', async () => {
+    // A dropped connection can end mid-record: the server's last write has
+    // no trailing "\n", so it never goes through the split('\n') path.
+    stubFetch(streamOf(['{"result":{"content":"one"}}\n', '{"result":{"content":"two"}}']))
+    const lines: string[] = []
+    await streamLogs({ instance: 'a', app: 'b', node, onLine: (l) => lines.push(l), signal: new AbortController().signal })
+    expect(lines).toEqual(['one', 'two'])
+  })
+
+  test('a mid-stream read error stops the loop and rejects', async () => {
     const ctrl = new AbortController()
     const encoder = new TextEncoder()
     let pulls = 0
@@ -62,12 +105,9 @@ describe('streamLogs', () => {
         pulls++
         if (pulls === 1) {
           controller.enqueue(encoder.encode('{"result":{"content":"first"}}\n'))
-          ctrl.abort()
           return
         }
-        // A real aborted fetch stream errors instead of continuing to
-        // produce chunks; simulate that so the loop has to stop on its own.
-        controller.error(new DOMException('aborted', 'AbortError'))
+        controller.error(new Error('connection reset'))
       },
     })
     stubFetch(body)
@@ -75,6 +115,31 @@ describe('streamLogs', () => {
     await expect(
       streamLogs({ instance: 'a', app: 'b', node, onLine: (l) => lines.push(l), signal: ctrl.signal }),
     ).rejects.toThrow()
+    expect(lines).toEqual(['first'])
+  })
+
+  test('aborting mid-stream stops delivery: no further onLine calls after the abort', async () => {
+    const ctrl = new AbortController()
+    stubAbortableFetch([
+      '{"result":{"content":"first"}}\n',
+      '{"result":{"content":"second"}}\n',
+      '{"result":{"content":"third"}}\n',
+    ])
+    const lines: string[] = []
+    await expect(
+      streamLogs({
+        instance: 'a',
+        app: 'b',
+        node,
+        onLine: (l) => {
+          lines.push(l)
+          if (l === 'first') ctrl.abort()
+        },
+        signal: ctrl.signal,
+      }),
+    ).rejects.toThrow()
+    // Only the line delivered before the abort fired; "second"/"third" never
+    // reach onLine because the stream errors out from under the read loop.
     expect(lines).toEqual(['first'])
   })
 })
