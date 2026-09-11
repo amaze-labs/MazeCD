@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -30,9 +31,10 @@ func (e *StatusError) Error() string {
 
 // Client is an authenticated connection to one ArgoCD instance.
 type Client struct {
-	inst config.Instance
-	base *url.URL
-	http *http.Client
+	inst  config.Instance
+	base  *url.URL
+	http  *http.Client
+	proxy *httputil.ReverseProxy
 }
 
 // NewClient builds the client and its TLS configuration.
@@ -58,13 +60,15 @@ func NewClient(inst config.Instance) (*Client, error) {
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = tlsCfg
-	return &Client{
+	c := &Client{
 		inst: inst,
 		base: base,
 		// No global client timeout: log streaming is a long-lived response.
 		// Callers bound their own requests with a context.
 		http: &http.Client{Transport: transport},
-	}, nil
+	}
+	c.proxy = newProxy(c)
+	return c, nil
 }
 
 // Instance returns the configuration this client was built from.
