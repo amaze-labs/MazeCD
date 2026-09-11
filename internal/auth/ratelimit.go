@@ -41,10 +41,17 @@ func (l *Limiter) Allow(key string, now time.Time) bool {
 		l.hits[key] = append(kept, now)
 	}
 
-	// Opportunistic sweep: delete empty entries once per window to prevent unbounded map growth.
+	// Opportunistic sweep: delete keys with all stale timestamps once per window to prevent unbounded map growth.
 	if now.Sub(l.lastSweep) >= l.window {
 		for k, v := range l.hits {
-			if len(v) == 0 {
+			allStale := true
+			for _, t := range v {
+				if t.After(cutoff) {
+					allStale = false
+					break
+				}
+			}
+			if allStale && len(v) > 0 {
 				delete(l.hits, k)
 			}
 		}

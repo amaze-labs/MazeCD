@@ -24,37 +24,31 @@ func TestLimiterAllowsUpToMaxThenBlocks(t *testing.T) {
 	}
 }
 
-func TestLimiterSweepsEmptyEntries(t *testing.T) {
+func TestLimiterSweepsExpiredKeys(t *testing.T) {
 	window := 15 * time.Minute
 	l := NewLimiter(5, window)
 	now := time.Now()
 
-	// Create entries from many distinct keys
+	// Record one attempt from each of 10 distinct keys at time now
 	for i := 0; i < 10; i++ {
 		key := "1.2.3." + string(rune('0'+i))
-		l.Allow(key, now)
+		if !l.Allow(key, now) {
+			t.Fatalf("Allow failed for key %s", key)
+		}
 	}
 	if len(l.hits) != 10 {
 		t.Fatalf("after 10 calls, map has %d entries, want 10", len(l.hits))
 	}
 
-	// Simulate entries expiring by advancing time and then manually
-	// trigger the sweep by calling Allow at a much later time
+	// Advance time well past the window and call Allow with a new key.
+	// This should trigger a sweep that deletes all stale keys from the first batch.
 	futureTime := now.Add(2 * window)
-
-	// Manually create expired entries in the map by reaching into unexported field
-	// (test lives in same package, so this is allowed)
-	for i := 0; i < 10; i++ {
-		key := "1.2.3." + string(rune('0'+i))
-		// Empty the slice - simulates all entries being expired and pruned
-		l.hits[key] = l.hits[key][:0]
+	if !l.Allow("1.2.3.99", futureTime) {
+		t.Fatal("Allow failed for new key")
 	}
 
-	// Call Allow to trigger the sweep; this will prune entries (already empty)
-	// and then sweep the map to delete empty entries
-	l.Allow("1.2.3.99", futureTime)
-
-	// After sweep, only the new key should remain
+	// After sweep, only the newest key should remain.
+	// All 10 old keys had timestamps at `now`, which is older than cutoff (futureTime - window).
 	if len(l.hits) != 1 {
 		t.Errorf("after sweep, map has %d entries, want 1", len(l.hits))
 	}
