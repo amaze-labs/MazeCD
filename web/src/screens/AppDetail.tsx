@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
 import { Tabs } from '../components/Tabs'
@@ -7,7 +7,9 @@ import { Tree } from '../components/Tree'
 import { StatusDot } from '../components/StatusDot'
 import { SyncSheet } from '../components/SyncSheet'
 import { ResourceSheet } from '../components/ResourceSheet'
-import { refreshApp, terminateOperation } from '../api/actions'
+import { HistorySheet } from '../components/HistorySheet'
+import { ConfirmSheet } from '../components/ConfirmSheet'
+import { refreshApp, terminateOperation, deleteApp } from '../api/actions'
 import { isProductionGuard } from '../lib/instanceGuard'
 import { DiffTab } from './tabs/DiffTab'
 import { EventsTab } from './tabs/EventsTab'
@@ -18,6 +20,7 @@ const TABS = ['Tree', 'Diff', 'Events', 'Manifest'] as const
 
 export function AppDetailScreen() {
   const { instance = '', name = '' } = useParams()
+  const navigate = useNavigate()
   const detail = useAppDetail(instance, name)
   const tree = useResourceTree(instance, name)
   const [tab, setTab] = useState<(typeof TABS)[number]>('Tree')
@@ -33,6 +36,8 @@ export function AppDetailScreen() {
   // treated as production: the guardrail must fail closed, not open.
   const production = isProductionGuard(instances.data, instance)
   const [syncOpen, setSyncOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [selection, setSelection] = useState<ResourceNode[]>([])
   const [actionError, setActionError] = useState('')
   const running = op?.phase === 'Running'
@@ -104,9 +109,18 @@ export function AppDetailScreen() {
               Terminate
             </button>
           )}
+          <button onClick={() => setHistoryOpen(true)} className="h-11 flex-1 rounded-lg border border-border">
+            History
+          </button>
+          <button
+            onClick={() => setDeleteOpen(true)}
+            className="h-11 w-11 rounded-lg border border-[#e96d76] text-[#e96d76]"
+            aria-label="Delete application"
+          >
+            ✕
+          </button>
         </div>
         {actionError && <p className="mt-2 text-xs text-[#e96d76]">{actionError}</p>}
-        {/* Task 16 adds history and delete to this action bar. */}
       </header>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
@@ -157,6 +171,33 @@ export function AppDetailScreen() {
         name={name}
         production={production}
         selection={selection}
+      />
+
+      <HistorySheet
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        instance={instance}
+        instanceColor={meta?.color ?? '#8b93a7'}
+        name={name}
+        history={status?.history ?? []}
+        currentRevision={status?.sync?.revision}
+      />
+
+      <ConfirmSheet
+        open={deleteOpen}
+        title="Delete application"
+        instance={instance}
+        instanceColor={meta?.color ?? '#8b93a7'}
+        app={name}
+        body="Cascade delete: the application and every resource it manages are removed from the cluster."
+        confirmLabel="Delete application"
+        requireTyping
+        onConfirm={async () => {
+          await deleteApp(instance, name, true)
+          await qc.invalidateQueries({ queryKey: ['apps'] })
+          navigate('/')
+        }}
+        onClose={() => setDeleteOpen(false)}
       />
     </div>
   )
