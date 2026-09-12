@@ -17,14 +17,14 @@ export default defineConfig({
         name: 'MazeCD',
         short_name: 'MazeCD',
         description: 'Multi-instance ArgoCD control',
-        theme_color: '#0b0e14',
-        background_color: '#0b0e14',
+        theme_color: '#0A0F14',
+        background_color: '#0A0F14',
         display: 'standalone',
         start_url: '/',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
