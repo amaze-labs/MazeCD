@@ -161,14 +161,14 @@ function Logs({ instance, app, node }: { instance: string; app: string; node: Re
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          className="t-mono h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:font-sans placeholder:text-muted focus:bg-raised"
+          className="t-mono h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:font-sans placeholder:text-muted-tint focus:bg-raised"
         />
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter lines"
           aria-label="Filter lines"
-          className="h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:text-muted focus:bg-raised"
+          className="h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:text-muted-tint focus:bg-raised"
         />
       </div>
       {error && (

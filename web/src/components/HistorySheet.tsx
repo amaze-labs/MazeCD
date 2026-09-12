@@ -68,7 +68,7 @@ export function HistorySheet({
                 {meta?.message && (
                   <p className="mt-1 truncate text-[15px]">{meta.message.split('\n')[0]}</p>
                 )}
-                <p className="mt-0.5 text-[13px] text-muted">
+                <p className={`mt-0.5 text-[13px] ${current ? 'text-muted-tint' : 'text-muted'}`}>
                   {new Date(h.deployedAt).toLocaleString()}
                   {meta?.author ? `, ${meta.author}` : ''}
                 </p>

@@ -86,7 +86,13 @@ export function Tree({
                 )}
               </span>
             )}
-            <span className="block text-[11px] leading-[14px] text-muted">{n.kind}</span>
+            <span
+              className={`block text-[11px] leading-[14px] ${
+                bucket === 'Healthy' ? 'text-muted' : 'text-muted-tint'
+              }`}
+            >
+              {n.kind}
+            </span>
             <span className="t-name block text-[15px]">{n.name}</span>
           </button>
         </div>

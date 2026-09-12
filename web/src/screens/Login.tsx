@@ -44,7 +44,7 @@ export function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="h-14 rounded-control bg-inset px-4 text-[17px] outline-none placeholder:text-muted focus:bg-raised"
+          className="h-14 rounded-control bg-inset px-4 text-[17px] outline-none placeholder:text-muted-tint focus:bg-raised"
           autoFocus
         />
         <button

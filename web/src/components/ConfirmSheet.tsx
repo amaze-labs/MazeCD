@@ -83,7 +83,7 @@ export function ConfirmSheet({
             autoCorrect="off"
             spellCheck={false}
             placeholder={app}
-            className="t-mono mt-1.5 h-12 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted focus:bg-raised"
+            className="t-mono mt-1.5 h-12 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted-tint focus:bg-raised"
           />
         </>
       )}

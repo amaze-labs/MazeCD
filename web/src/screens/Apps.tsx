@@ -71,7 +71,7 @@ export function Apps() {
           onChange={(e) => setFilter({ ...filter, q: e.target.value })}
           placeholder="Find an application"
           aria-label="Find an application"
-          className="h-11 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted focus:bg-raised"
+          className="h-11 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted-tint focus:bg-raised"
         />
         {(instances.data ?? []).length > 1 && (
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
