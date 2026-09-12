@@ -28,6 +28,19 @@ export function shouldReload(
 export const RELOAD_KEY = 'mazecd:reloaded-for-version'
 
 /**
+ * Whether an update should be applied by handing off to the service worker,
+ * rather than by a plain reload. A registration existing is not enough --
+ * `updateServiceWorker`/`messageSkipWaiting` only does anything when a
+ * worker is actually `waiting`; with none, the handoff is a silent no-op and
+ * the plain reload is the only thing that will actually pick up the update.
+ */
+export function shouldHandoffToWorker(
+  registration: Pick<ServiceWorkerRegistration, 'waiting'> | undefined,
+): boolean {
+  return !!registration?.waiting
+}
+
+/**
  * Offers a reload only when `shouldReload` allows it, and records the server
  * version in `sessionStorage` only at the moment the reload is actually
  * applied -- never merely offered. A reload the user (or the auto-apply
@@ -117,7 +130,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
       // worker is still serving. location.reload() stays the fallback for
       // the case this poll genuinely exists for -- no worker at all.
       checkVersion(body.version ?? '', __BUILD_VERSION__, onAvailable, () =>
-        swRegistration ? applySW(true) : window.location.reload(),
+        shouldHandoffToWorker(swRegistration) ? applySW(true) : window.location.reload(),
       )
     } catch {
       // Offline or mid-deploy: the next tick tries again.

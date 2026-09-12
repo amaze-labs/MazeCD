@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { RELOAD_KEY, checkVersion, isStale, shouldReload } from './update'
+import { RELOAD_KEY, checkVersion, isStale, shouldHandoffToWorker, shouldReload } from './update'
 
 /** A minimal in-memory stand-in for sessionStorage, so tests don't depend on
  * a DOM environment. */
@@ -105,6 +105,18 @@ test('re-offering the same version after it was applied is harmless', () => {
   const secondOffer = vi.fn()
   checkVersion('1.4.0', '1.3.0', secondOffer)
   expect(secondOffer).not.toHaveBeenCalled()
+})
+
+test('no registration at all means no handoff', () => {
+  expect(shouldHandoffToWorker(undefined)).toBe(false)
+})
+
+test('a registration with nothing waiting means no handoff', () => {
+  expect(shouldHandoffToWorker({ waiting: null })).toBe(false)
+})
+
+test('a registration with a waiting worker means handoff', () => {
+  expect(shouldHandoffToWorker({ waiting: {} as ServiceWorker })).toBe(true)
 })
 
 test('apply hands off to the supplied reload, after recording the version', () => {
