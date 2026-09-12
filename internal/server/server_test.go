@@ -98,4 +98,52 @@ func TestClientRouteServesShell(t *testing.T) {
 	}
 }
 
+// A 401 from MazeCD's own session check and a 401 forwarded from ArgoCD are
+// the same status code on the wire; only the header tells them apart, and the
+// client logs the operator out on one but not the other.
+func TestSessionRejectionIsMarkedButProxied401IsNot(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "token revoked", http.StatusUnauthorized)
+	}))
+	defer upstream.Close()
+
+	cfg := &config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL, Token: "t", Color: "#ef4444"},
+	}}
+	reg, err := argocd.NewRegistry(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := auth.NewSessions([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(Options{Registry: reg, Sessions: sessions, PasswordHash: "x", Version: "test-1",
+		Static: http.NotFoundHandler()})
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/i/prod/applications", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("no session: status = %d, want 401", rec.Code)
+	}
+	if rec.Header().Get(auth.RequiredHeader) == "" {
+		t.Errorf("no session: %s header missing, the client cannot tell this is a dead session", auth.RequiredHeader)
+	}
+
+	tok, _ := sessions.Issue(time.Now())
+	req := httptest.NewRequest("GET", "/api/i/prod/applications", nil)
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tok})
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked instance token: status = %d, want ArgoCD's 401 verbatim", rec.Code)
+	}
+	if got := rec.Header().Get(auth.RequiredHeader); got != "" {
+		t.Errorf("%s = %q on a proxied 401: the client would log the operator out in a loop", auth.RequiredHeader, got)
+	}
+	if !strings.Contains(rec.Body.String(), "token revoked") {
+		t.Errorf("body = %q, want ArgoCD's own message", rec.Body.String())
+	}
+}
+
 func timeNow() time.Time { return time.Now() }

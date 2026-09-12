@@ -7,6 +7,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * MazeCD marks its own session rejections with this header. A 401 without it
+ * came from ArgoCD through the instance proxy -- an expired or revoked
+ * instance token -- and must surface as an ordinary upstream error, not as a
+ * logout: bouncing to the login screen on every poll would leave the operator
+ * in a loop with no way to read what ArgoCD actually said.
+ */
+const AUTH_HEADER = 'X-MazeCD-Auth'
+
 let onUnauthenticated: () => void = () => {}
 
 /** Registered by the auth provider so a dead session lands on the login screen. */
@@ -35,7 +44,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   })
-  if (res.status === 401) {
+  if (res.status === 401 && res.headers.get(AUTH_HEADER)) {
     onUnauthenticated()
     throw new ApiError(401, 'session expired')
   }

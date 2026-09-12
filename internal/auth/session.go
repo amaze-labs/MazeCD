@@ -20,6 +20,12 @@ const (
 	// RenewAfter is the age at which a session is reissued on use, so that an
 	// app opened at least once every SessionTTL never needs a new login.
 	RenewAfter = 24 * time.Hour
+	// RequiredHeader marks a 401 as MazeCD's own session check failing. Every
+	// proxied call returns ArgoCD's status verbatim, so a 401 from an expired
+	// instance token is indistinguishable from a dead session without it --
+	// and the client would bounce the operator to the login screen on every
+	// poll. Only the responses written here carry it.
+	RequiredHeader = "X-MazeCD-Auth"
 )
 
 // Sessions issues and verifies signed session tokens.
@@ -105,14 +111,14 @@ func (s *Sessions) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(CookieName)
 		if err != nil {
-			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			unauthenticated(w)
 			return
 		}
 		now := time.Now()
 		iat, ok := s.Verify(c.Value, now)
 		if !ok {
 			s.ClearCookie(w)
-			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			unauthenticated(w)
 			return
 		}
 		if now.Sub(iat) > RenewAfter {
@@ -121,4 +127,10 @@ func (s *Sessions) Require(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// unauthenticated rejects a request for want of a valid MazeCD session.
+func unauthenticated(w http.ResponseWriter) {
+	w.Header().Set(RequiredHeader, "required")
+	http.Error(w, "unauthenticated", http.StatusUnauthorized)
 }
