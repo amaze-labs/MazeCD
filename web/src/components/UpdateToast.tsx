@@ -34,11 +34,11 @@ export function UpdateToast() {
 
   if (!apply) return null
   return (
-    <div className="pb-safe fixed inset-x-3 bottom-20 z-[60] flex items-center gap-3 rounded-xl border border-accent bg-surface px-4 py-3 shadow-lg">
-      <span className="flex-1 text-sm">A new version of MazeCD is available.</span>
+    <div className="pb-safe fixed inset-x-3 bottom-24 z-[60] flex items-center gap-3 rounded-control bg-raised px-4 py-3 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.9)]">
+      <span className="flex-1 text-[14px] leading-snug">A newer build of MazeCD is ready.</span>
       <button
         onClick={apply}
-        className="flex h-11 shrink-0 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-bg"
+        className="flex h-11 shrink-0 items-center justify-center rounded-control bg-text px-4 text-[14px] font-semibold text-ink"
       >
         Reload
       </button>

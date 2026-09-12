@@ -45,27 +45,38 @@ export function HistorySheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="History">
-      <ul className="divide-y divide-border">
+      <ul className="flex flex-col gap-0.5">
         {items.map((h, i) => {
           const meta = metadata[i]?.data
           const current = h.revision === currentRevision
           return (
-            <li key={h.id} className="flex items-start gap-3 py-3">
+            <li
+              key={h.id}
+              className={`flex items-start gap-3 rounded-pill px-3 py-2.5 ${
+                current ? 'bg-inset' : ''
+              }`}
+            >
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-sm">
-                  {h.revision.slice(0, 7)}
-                  {current && <span className="ml-2 text-xs text-[#18be94]">current</span>}
+                <p className="flex items-center gap-2">
+                  <span className="t-mono text-[13px]">{h.revision.slice(0, 7)}</span>
+                  {current && (
+                    <span className="rounded-pill bg-healthy/15 px-1.5 py-px text-[12px] leading-4 font-medium text-healthy">
+                      deployed now
+                    </span>
+                  )}
                 </p>
-                {meta?.message && <p className="mt-0.5 truncate text-sm">{meta.message.split('\n')[0]}</p>}
-                <p className="mt-0.5 text-xs text-muted">
+                {meta?.message && (
+                  <p className="mt-1 truncate text-[15px]">{meta.message.split('\n')[0]}</p>
+                )}
+                <p className="mt-0.5 text-[13px] text-muted">
                   {new Date(h.deployedAt).toLocaleString()}
-                  {meta?.author ? ` · ${meta.author}` : ''}
+                  {meta?.author ? `, ${meta.author}` : ''}
                 </p>
               </div>
               {!current && (
                 <button
                   onClick={() => setTarget(h)}
-                  className="flex h-11 shrink-0 items-center rounded-lg border border-border px-3 text-sm"
+                  className="flex h-11 shrink-0 items-center rounded-control border border-rule px-3 text-[14px] active:bg-raised"
                 >
                   Roll back
                 </button>
@@ -73,7 +84,12 @@ export function HistorySheet({
             </li>
           )
         })}
-        {items.length === 0 && <li className="py-8 text-center text-sm text-muted">No deployment history.</li>}
+        {items.length === 0 && (
+          <li className="px-4 py-10 text-center text-[15px] leading-relaxed text-muted">
+            ArgoCD has recorded no deployments for this application yet. Sync it once and the
+            revision will appear here.
+          </li>
+        )}
       </ul>
 
       {target && (
@@ -83,7 +99,7 @@ export function HistorySheet({
           instance={instance}
           instanceColor={instanceColor}
           app={name}
-          body={`Deploy revision ${target.revision.slice(0, 7)} again. This starts a sync with automated sync temporarily disabled by ArgoCD.`}
+          body={`Deploy revision ${target.revision.slice(0, 7)} again. This starts a sync, and ArgoCD turns automated sync off until you turn it back on.`}
           confirmLabel="Roll back"
           onConfirm={async () => {
             await rollbackApp(instance, name, target.id)

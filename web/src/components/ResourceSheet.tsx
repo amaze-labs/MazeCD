@@ -5,6 +5,7 @@ import { ConfirmSheet } from './ConfirmSheet'
 import { api, argoPath } from '../api/client'
 import { deleteResource, runResourceAction } from '../api/actions'
 import { streamLogs } from '../lib/logs'
+import { SheetTarget } from './ui'
 import type { ResourceNode } from '../api/types'
 
 const TABS = ['Logs', 'Manifest', 'Actions'] as const
@@ -32,22 +33,29 @@ export function ResourceSheet({
 
   return (
     <Sheet open onClose={onClose} title={`${node.kind} ${node.name}`}>
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 p-3">
-        <span className="h-8 w-1.5 rounded-full" style={{ background: instanceColor }} />
-        <p className="min-w-0 truncate text-xs text-muted">
-          {instance} · {node.namespace}
-          {node.health?.status ? ` · ${node.health.status}` : ''}
+      <SheetTarget
+        instance={instance}
+        color={instanceColor}
+        production={production}
+        name={node.name}
+        detail={
+          node.health?.status ? `${node.namespace} — ${node.health.status}` : node.namespace
+        }
+      />
+      {node.health?.message && (
+        <p className="mt-2 rounded-pill bg-surface-degraded px-3 py-2 text-[13px] leading-snug text-text-degraded">
+          {node.health.message}
         </p>
-      </div>
-      {node.health?.message && <p className="mt-2 text-xs text-[#f4c030]">{node.health.message}</p>}
+      )}
 
       <div className="mt-3 flex gap-2">
         {TABS.filter((t) => t !== 'Logs' || isPod).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex min-h-11 items-center rounded-full border px-3 text-sm ${
-              tab === t ? 'border-accent text-accent' : 'border-border text-muted'
+            aria-pressed={tab === t}
+            className={`flex h-11 items-center rounded-pill px-3.5 text-[14px] ${
+              tab === t ? 'bg-raised text-text' : 'text-muted'
             }`}
           >
             {t}
@@ -148,19 +156,26 @@ function Logs({ instance, app, node }: { instance: string; app: string; node: Re
         <input
           value={container}
           onChange={(e) => setContainer(e.target.value)}
-          placeholder="container (optional)"
-          className="h-11 flex-1 rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-accent"
+          placeholder="Container"
+          aria-label="Container"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          className="t-mono h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:font-sans placeholder:text-muted focus:bg-raised"
         />
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="filter"
-          className="h-11 flex-1 rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-accent"
+          placeholder="Filter lines"
+          aria-label="Filter lines"
+          className="h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:text-muted focus:bg-raised"
         />
       </div>
-      {error && <p className="mt-2 text-sm text-[#e96d76]">{error}</p>}
-      <pre className="mt-2 max-h-[50dvh] overflow-auto rounded-lg bg-bg p-3 text-[11px] leading-relaxed">
-        {shown.join('\n') || (error ? '' : 'waiting for output…')}
+      {error && (
+        <p className="mt-2 text-[14px] leading-snug text-degraded">Log stream stopped: {error}</p>
+      )}
+      <pre className="t-mono mt-2 max-h-[50dvh] overflow-auto rounded-control bg-ink p-3 text-[11px] leading-relaxed">
+        {shown.join('\n') || (error ? '' : filter ? 'No line matches that filter.' : 'Waiting for output…')}
         <div ref={bottom} />
       </pre>
     </div>
@@ -186,10 +201,15 @@ function Manifest({ instance, app, node }: { instance: string; app: string; node
       ),
     refetchInterval: false,
   })
-  if (q.isLoading) return <p className="text-sm text-muted">Loading…</p>
-  if (q.isError) return <p className="text-sm text-[#e96d76]">{String(q.error)}</p>
+  if (q.isLoading) return <p className="text-[14px] text-muted">Loading the live manifest…</p>
+  if (q.isError)
+    return (
+      <p className="text-[14px] leading-snug text-degraded">
+        Could not read the manifest: {String(q.error)}
+      </p>
+    )
   return (
-    <pre className="max-h-[50dvh] overflow-auto rounded-lg bg-bg p-3 text-[11px] leading-relaxed text-muted">
+    <pre className="t-mono max-h-[50dvh] overflow-auto rounded-control bg-ink p-3 text-[11px] leading-relaxed text-muted">
       {q.data?.manifest ?? ''}
     </pre>
   )
@@ -237,12 +257,15 @@ function Actions({
           <button
             key={a.name}
             onClick={() => onRun(a.name)}
-            className="h-12 rounded-lg border border-border text-sm capitalize"
+            className="h-12 rounded-control border border-rule text-[15px] capitalize active:bg-raised"
           >
             {a.name}
           </button>
         ))}
-      <button onClick={onDelete} className="h-12 rounded-lg border border-[#e96d76] text-sm text-[#e96d76]">
+      <button
+        onClick={onDelete}
+        className="h-12 rounded-control border border-degraded text-[15px] text-degraded"
+      >
         Delete {node.kind}
       </button>
     </div>

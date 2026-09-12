@@ -10,7 +10,7 @@ import { UpdateToast } from './components/UpdateToast'
 function Routed() {
   const { authenticated } = useAuth()
   if (authenticated === undefined) {
-    return <div className="flex min-h-dvh items-center justify-center text-muted">…</div>
+    return <div className="flex min-h-dvh items-center justify-center text-[15px] text-muted">…</div>
   }
   if (!authenticated) return <Login />
   return (

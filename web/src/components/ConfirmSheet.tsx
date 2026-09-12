@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Sheet } from './Sheet'
+import { SheetTarget } from './ui'
 
 /**
  * Every destructive confirmation names the instance and the application in
@@ -67,28 +68,31 @@ export function ConfirmSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 p-3">
-        <span className="h-10 w-1.5 rounded-full" style={{ background: instanceColor }} />
-        <div className="min-w-0">
-          <p className="text-xs uppercase tracking-wide text-muted">{instance}</p>
-          <p className="truncate font-medium">{app}</p>
-        </div>
-      </div>
-      {body && <p className="mt-3 text-sm text-muted">{body}</p>}
+      <SheetTarget instance={instance} color={instanceColor} name={app} />
+      {body && <p className="mt-3 text-[14px] leading-relaxed text-muted">{body}</p>}
       {requireTyping && (
-        <input
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder={`Type ${app} to confirm`}
-          className="mt-3 h-12 w-full rounded-lg border border-border bg-surface px-3 outline-none focus:border-accent"
-        />
+        <>
+          <label htmlFor="confirm-name" className="mt-4 block text-[13px] text-muted">
+            Type the application name to unlock this
+          </label>
+          <input
+            id="confirm-name"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder={app}
+            className="t-mono mt-1.5 h-12 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted focus:bg-raised"
+          />
+        </>
       )}
-      {error && <p className="mt-3 text-sm text-[#e96d76]">{error}</p>}
+      {error && <p className="mt-3 text-[14px] leading-snug text-degraded">That did not go through: {error}</p>}
       <button
         onClick={go}
         disabled={!ready || busy}
-        className={`mt-4 h-14 w-full rounded-xl text-lg font-medium disabled:opacity-40 ${
-          destructive ? 'bg-[#e96d76] text-bg' : 'bg-accent text-bg'
+        className={`mt-4 h-14 w-full rounded-control text-[17px] font-semibold text-ink disabled:opacity-40 ${
+          destructive ? 'bg-degraded' : 'bg-text'
         }`}
       >
         {busy ? 'Working…' : confirmLabel}

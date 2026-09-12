@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Sheet } from './Sheet'
+import { SheetTarget } from './ui'
 import { defaultSyncOptions, type SyncOptions } from '../lib/sync'
 import { syncApp } from '../api/actions'
 import type { ResourceNode } from '../api/types'
@@ -74,74 +75,78 @@ export function SyncSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Sync">
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 p-3">
-        <span className="h-10 w-1.5 rounded-full" style={{ background: instanceColor }} />
-        <div className="min-w-0">
-          <p className="text-xs uppercase tracking-wide text-muted">
-            {instance}
-            {production ? ' · production' : ''}
-          </p>
-          <p className="truncate font-medium">{name}</p>
-        </div>
-      </div>
-
-      <label className="mt-4 block text-sm text-muted">Revision</label>
-      <input
-        value={opts.revision}
-        onChange={(e) => setOpts({ ...opts, revision: e.target.value })}
-        placeholder="HEAD"
-        className="mt-1 h-12 w-full rounded-lg border border-border bg-surface px-3 outline-none focus:border-accent"
+      <SheetTarget
+        instance={instance}
+        color={instanceColor}
+        production={production}
+        name={name}
+        detail={
+          selection.length > 0
+            ? `${selection.length} picked resource${selection.length > 1 ? 's' : ''} only`
+            : undefined
+        }
       />
 
-      {selection.length > 0 && (
-        <p className="mt-3 rounded-lg border border-accent/40 p-3 text-sm">
-          Syncing {selection.length} selected resource{selection.length > 1 ? 's' : ''} only.
-        </p>
-      )}
+      <label htmlFor="sync-revision" className="mt-4 block text-[13px] text-muted">
+        Revision
+      </label>
+      <input
+        id="sync-revision"
+        value={opts.revision}
+        onChange={(e) => setOpts({ ...opts, revision: e.target.value })}
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        placeholder="HEAD"
+        className="t-mono mt-1.5 h-12 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted focus:bg-raised"
+      />
 
-      <div className="mt-4 divide-y divide-border">
+      <div className="mt-4">
         {TOGGLES.map((t) => (
-          <label key={t.key} className="flex items-center gap-3 py-3">
+          <label key={t.key} className="flex min-h-11 items-center gap-3 py-2">
             <input
               type="checkbox"
               checked={Boolean(opts[t.key])}
               onChange={(e) => setOpts({ ...opts, [t.key]: e.target.checked })}
-              className="size-5 accent-[#6ea8fe]"
+              className="size-5 shrink-0 accent-[#e8eef4]"
             />
             <span className="flex-1">
-              <span className="block text-sm">{t.label}</span>
-              <span className="block text-xs text-muted">{t.hint}</span>
+              <span className="block text-[15px]">{t.label}</span>
+              <span className="block text-[13px] text-muted">{t.hint}</span>
             </span>
           </label>
         ))}
       </div>
 
-      {error && <p className="mt-3 text-sm text-[#e96d76]">{error}</p>}
+      {error && <p className="mt-3 text-[14px] leading-snug text-degraded">That did not go through: {error}</p>}
 
       {!confirming ? (
         <button
           onClick={() => (needsConfirm ? setConfirming(true) : run())}
           disabled={busy}
-          className="mt-4 h-14 w-full rounded-xl bg-accent text-lg font-medium text-bg disabled:opacity-40"
+          className="mt-4 h-14 w-full rounded-control bg-text text-[17px] font-semibold text-ink disabled:opacity-40"
         >
-          {opts.dryRun ? 'Dry run' : 'Synchronize'}
+          {opts.dryRun ? 'Dry run' : 'Sync'}
         </button>
       ) : (
-        <div className="mt-4 rounded-xl border border-[#f4c030] p-3">
-          <p className="text-sm">
-            This is a production instance. Synchronize <strong>{name}</strong> on{' '}
-            <strong>{instance}</strong>?
+        <div className="mt-4 rounded-control bg-surface-outofsync p-3">
+          <p className="text-[14px] leading-relaxed">
+            <strong className="font-semibold text-outofsync">{instance}</strong> is a production
+            instance. Sync <strong className="font-semibold">{name}</strong> for real?
           </p>
           <div className="mt-3 flex gap-2">
-            <button onClick={() => setConfirming(false)} className="h-12 flex-1 rounded-lg border border-border">
+            <button
+              onClick={() => setConfirming(false)}
+              className="h-12 flex-1 rounded-control border border-rule text-[15px]"
+            >
               Cancel
             </button>
             <button
               onClick={run}
               disabled={busy}
-              className="h-12 flex-1 rounded-lg bg-[#f4c030] font-medium text-bg disabled:opacity-40"
+              className="h-12 flex-1 rounded-control bg-outofsync text-[15px] font-semibold text-ink disabled:opacity-40"
             >
-              {busy ? 'Syncing…' : 'Confirm'}
+              {busy ? 'Syncing…' : 'Sync'}
             </button>
           </div>
         </div>

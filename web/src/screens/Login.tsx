@@ -17,8 +17,8 @@ export function Login() {
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 429
-          ? 'Too many attempts. Try again in a few minutes.'
-          : 'Wrong password.',
+          ? 'Too many attempts. Wait a few minutes, then try again.'
+          : 'That password was not accepted. Check it and try again.',
       )
     } finally {
       setBusy(false)
@@ -28,7 +28,15 @@ export function Login() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">MazeCD</h1>
+      <div className="flex flex-col items-center gap-4">
+        {/* The mark: health above, sync below — the same gutter the rows use. */}
+        <span className="flex h-14 w-7 flex-col overflow-hidden rounded-full" aria-hidden="true">
+          <span className="flex-[64] bg-healthy" />
+          <span className="h-1" />
+          <span className="flex-[28] bg-progressing" />
+        </span>
+        <h1 className="t-name text-[28px]">MazeCD</h1>
+      </div>
       <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-4">
         <input
           type="password"
@@ -36,17 +44,17 @@ export function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="h-14 rounded-xl border border-border bg-surface px-4 text-lg outline-none focus:border-accent"
+          className="h-14 rounded-control bg-inset px-4 text-[17px] outline-none placeholder:text-muted focus:bg-raised"
           autoFocus
         />
         <button
           type="submit"
           disabled={busy || password === ''}
-          className="h-14 rounded-xl bg-accent text-lg font-medium text-bg disabled:opacity-40"
+          className="h-14 rounded-control bg-text text-[17px] font-semibold text-ink disabled:opacity-40"
         >
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        {error && <p className="text-center text-sm text-[#e96d76]">{error}</p>}
+        {error && <p className="text-center text-[14px] leading-snug text-degraded">{error}</p>}
       </form>
     </div>
   )
