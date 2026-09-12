@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
@@ -51,6 +51,24 @@ export function AppDetailScreen() {
       qc.invalidateQueries({ queryKey: ['apps'] }),
     ])
 
+  // Hard refresh used to hang off `contextmenu` alone: no tooltip exists on a
+  // phone, and long-press-to-contextmenu is unreliable on iOS Safari for
+  // buttons, so the feature had no entry point on the device MazeCD targets.
+  // A real 600ms press timer gives it one; contextmenu stays for the desktop.
+  const hardPress = useRef(false)
+  const pressTimer = useRef<number | undefined>(undefined)
+  const pressAt = useRef({ x: 0, y: 0 })
+  const cancelPress = () => window.clearTimeout(pressTimer.current)
+  useEffect(() => cancelPress, [])
+  // Idempotent per press: a long press on iOS can fire the timer and a
+  // contextmenu, and only one hard refresh should come of it.
+  const hardRefresh = () => {
+    cancelPress()
+    if (hardPress.current) return
+    hardPress.current = true
+    void act(() => refreshApp(instance, name, true))
+  }
+
   async function act(fn: () => Promise<unknown>) {
     setActionError('')
     try {
@@ -93,12 +111,36 @@ export function AppDetailScreen() {
             Sync
           </button>
           <button
-            onClick={() => act(() => refreshApp(instance, name, false))}
+            onClick={() => {
+              // The press already ran the hard refresh; the click that
+              // follows the release must not run a second, normal one.
+              if (hardPress.current) {
+                hardPress.current = false
+                return
+              }
+              void act(() => refreshApp(instance, name, false))
+            }}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return // right click is the contextmenu path
+              hardPress.current = false
+              cancelPress()
+              pressAt.current = { x: e.clientX, y: e.clientY }
+              pressTimer.current = window.setTimeout(hardRefresh, 600)
+            }}
+            onPointerUp={cancelPress}
+            onPointerMove={(e) => {
+              // A finger never holds perfectly still; cancel on a real drag
+              // (the start of a scroll), not on a pixel of jitter.
+              const { x, y } = pressAt.current
+              if (Math.hypot(e.clientX - x, e.clientY - y) > 12) cancelPress()
+            }}
+            onPointerCancel={cancelPress}
+            onPointerLeave={cancelPress}
             onContextMenu={(e) => {
               e.preventDefault()
-              void act(() => refreshApp(instance, name, true))
+              hardRefresh()
             }}
-            className="h-11 flex-1 rounded-lg border border-border"
+            className="h-11 flex-1 select-none rounded-lg border border-border"
             title="Long press or right click for a hard refresh"
           >
             Refresh
