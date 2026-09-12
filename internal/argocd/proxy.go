@@ -7,6 +7,8 @@ import (
 	"net/http/httputil"
 	"path"
 	"strings"
+
+	"github.com/amaze-labs/MazeCD/internal/auth"
 )
 
 // Proxy returns a reverse proxy to this instance's /api/v1. The caller sets
@@ -34,9 +36,15 @@ func newProxy(c *Client) *httputil.ReverseProxy {
 		},
 		// "Tokens never reach the device" cuts both ways: the request drops
 		// the browser's Cookie, and the response must not plant one of
-		// ArgoCD's on MazeCD's origin.
+		// ArgoCD's on MazeCD's origin. The upstream also must not be able to
+		// forge auth.RequiredHeader: the client trusts it to tell a dead
+		// MazeCD session from an ArgoCD rejection, so a compromised or
+		// misconfigured instance echoing it back on a 401 would put the
+		// operator right back in the logout loop that header exists to
+		// prevent.
 		ModifyResponse: func(resp *http.Response) error {
 			resp.Header.Del("Set-Cookie")
+			resp.Header.Del(auth.RequiredHeader)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/amaze-labs/MazeCD/internal/auth"
 	"github.com/amaze-labs/MazeCD/internal/config"
 )
 
@@ -205,5 +206,37 @@ func TestProxyStripsUpstreamSetCookie(t *testing.T) {
 	}
 	if got := rec.Result().Header.Values("Set-Cookie"); len(got) != 0 {
 		t.Errorf("Set-Cookie = %v, want none: ArgoCD must not set cookies on MazeCD's origin", got)
+	}
+}
+
+// The client treats auth.RequiredHeader as proof that MazeCD itself rejected
+// the request. An upstream must not be able to forge that on a 401 -- it
+// would send the operator to the login screen instead of showing the
+// instance's own error.
+func TestProxyStripsUpstreamAuthHeader(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(auth.RequiredHeader, "anything")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid token"}`))
+	}))
+	defer upstream.Close()
+
+	reg, err := NewRegistry(&config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL, Token: "t"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	mount(reg).ServeHTTP(rec, httptest.NewRequest("GET", "/api/i/prod/applications", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	if got := rec.Header().Get(auth.RequiredHeader); got != "" {
+		t.Errorf("%s = %q, want empty: an ArgoCD instance must not be able to forge it", auth.RequiredHeader, got)
+	}
+	if !strings.Contains(rec.Body.String(), "invalid token") {
+		t.Errorf("body = %q, want the upstream body forwarded", rec.Body.String())
 	}
 }
