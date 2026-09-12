@@ -37,6 +37,12 @@ minor_bump=false
 # chore commit that quotes another commit's "feat:" line in its body can't
 # leak a minor bump. NUL-separated records so multi-line bodies survive.
 while IFS= read -r -d '' commit; do
+  # git inserts its own newline between %x00-terminated records, so every
+  # record but the first arrives here with a leading "\n" (the previous
+  # record's terminator land right before this one's %s). Strip it before
+  # splitting, or the subject/body split below is off by one line for every
+  # commit except the newest.
+  commit="${commit#$'\n'}"
   subject="${commit%%$'\n'*}"
   body="${commit#*$'\n'}"
 
