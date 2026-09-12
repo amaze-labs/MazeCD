@@ -52,7 +52,7 @@ jobs:
             ${{ steps.image.outputs.image }}:${{ steps.version.outputs.version }}
             ${{ steps.image.outputs.image }}:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
       - name: Tag the release
         if: steps.version.outputs.skip != 'true'
