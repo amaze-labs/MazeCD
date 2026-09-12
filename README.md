@@ -54,11 +54,17 @@ Copy `config.example.yaml` to `config.yaml` and list your instances.
 
 ### 3. Generate the secrets
 
+`mazecd hash` prompts for the password on the terminal and prints the bcrypt
+hash, so the password never lands in your shell history:
+
 ```bash
-export MAZECD_PASSWORD_HASH="$(docker run --rm -i mazecd:dev hash <<< 'your-password')"
+export MAZECD_PASSWORD_HASH="$(go run ./cmd/mazecd hash)"
 export MAZECD_SESSION_KEY="$(openssl rand -base64 32)"
 export ARGOCD_TOKEN_PROD=...
 ```
+
+Once the image is built, `docker run --rm -it mazecd:dev hash` does the same
+without a Go toolchain.
 
 ### 4. Run
 
