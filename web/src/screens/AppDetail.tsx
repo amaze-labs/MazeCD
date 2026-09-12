@@ -11,6 +11,7 @@ import { HistorySheet } from '../components/HistorySheet'
 import { ConfirmSheet } from '../components/ConfirmSheet'
 import { refreshApp, terminateOperation, deleteApp } from '../api/actions'
 import { isProductionGuard } from '../lib/instanceGuard'
+import { useOnline } from '../lib/online'
 import { DiffTab } from './tabs/DiffTab'
 import { EventsTab } from './tabs/EventsTab'
 import { ManifestTab } from './tabs/ManifestTab'
@@ -23,6 +24,7 @@ export function AppDetailScreen() {
   const navigate = useNavigate()
   const detail = useAppDetail(instance, name)
   const tree = useResourceTree(instance, name)
+  const online = useOnline()
   const [tab, setTab] = useState<(typeof TABS)[number]>('Tree')
   const [selected, setSelected] = useState<ResourceNode | null>(null)
 
@@ -85,7 +87,7 @@ export function AppDetailScreen() {
         <div className="mt-3 flex gap-2">
           <button
             onClick={() => setSyncOpen(true)}
-            disabled={running || !instances.data}
+            disabled={running || !instances.data || !online}
             className="h-11 flex-1 rounded-lg bg-accent font-medium text-bg disabled:opacity-40"
           >
             Sync

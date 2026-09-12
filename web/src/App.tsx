@@ -5,6 +5,7 @@ import { Shell } from './components/Shell'
 import { Apps } from './screens/Apps'
 import { AppDetailScreen } from './screens/AppDetail'
 import { Settings } from './screens/Settings'
+import { UpdateToast } from './components/UpdateToast'
 
 function Routed() {
   const { authenticated } = useAuth()
@@ -13,14 +14,17 @@ function Routed() {
   }
   if (!authenticated) return <Login />
   return (
-    <Shell>
-      <Routes>
-        <Route path="/" element={<Apps />} />
-        <Route path="/apps/:instance/:name" element={<AppDetailScreen />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Shell>
+    <>
+      <Shell>
+        <Routes>
+          <Route path="/" element={<Apps />} />
+          <Route path="/apps/:instance/:name" element={<AppDetailScreen />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Shell>
+      <UpdateToast />
+    </>
   )
 }
 
