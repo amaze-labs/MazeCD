@@ -179,3 +179,31 @@ func TestProxyDeletesAllCookieHeaders(t *testing.T) {
 		t.Errorf("upstream Cookie header = %q, want empty", got.Header.Get("Cookie"))
 	}
 }
+
+// The token must never reach the device; neither must anything ArgoCD tries
+// to set on MazeCD's origin.
+func TestProxyStripsUpstreamSetCookie(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Set-Cookie", "argocd.token=upstream; Path=/")
+		w.Header().Add("Set-Cookie", "other=value")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	reg, err := NewRegistry(&config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL, Token: "t"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	mount(reg).ServeHTTP(rec, httptest.NewRequest("GET", "/api/i/prod/applications", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Result().Header.Values("Set-Cookie"); len(got) != 0 {
+		t.Errorf("Set-Cookie = %v, want none: ArgoCD must not set cookies on MazeCD's origin", got)
+	}
+}

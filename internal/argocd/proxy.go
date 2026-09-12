@@ -32,6 +32,13 @@ func newProxy(c *Client) *httputil.ReverseProxy {
 			pr.Out.Header.Del("Cookie")
 			pr.Out.Header.Set("Authorization", "Bearer "+c.inst.Token)
 		},
+		// "Tokens never reach the device" cuts both ways: the request drops
+		// the browser's Cookie, and the response must not plant one of
+		// ArgoCD's on MazeCD's origin.
+		ModifyResponse: func(resp *http.Response) error {
+			resp.Header.Del("Set-Cookie")
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			slog.Warn("proxy failed", "instance", c.inst.Name, "path", r.URL.Path, "err", err)
 			w.Header().Set("Content-Type", "application/json")
