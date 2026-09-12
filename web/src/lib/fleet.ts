@@ -19,10 +19,13 @@ export function bucketOf(a: { health: Health; sync: SyncStatus }): Bucket {
  * value and carry no card treatment at all.
  */
 export function surfaceOf(bucket: Bucket): string {
+  // The press state has to match the surface: brightening works on a row
+  // that has a background, but on a flat row it would only wash out the
+  // text, so a flat row gets a background for the length of the press.
   if (bucket === 'Degraded')
-    return 'bg-surface-degraded shadow-[0_8px_20px_-10px_rgba(233,109,118,0.45)]'
-  if (bucket === 'OutOfSync') return 'bg-surface-outofsync'
-  return ''
+    return 'z-[1] bg-surface-degraded shadow-[0_8px_20px_-10px_rgba(233,109,118,0.45)] active:brightness-125'
+  if (bucket === 'OutOfSync') return 'bg-surface-outofsync active:brightness-125'
+  return 'active:bg-panel'
 }
 
 export function countBy(apps: App[]): Record<Bucket, number> {

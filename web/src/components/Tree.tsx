@@ -73,7 +73,7 @@ export function Tree({
           )}
           <button
             onClick={() => onSelect(n)}
-            className={`relative min-h-11 min-w-0 flex-1 py-2.5 pr-4 pl-2.5 text-left active:brightness-125 ${surfaceOf(bucket)}`}
+            className={`relative min-h-11 min-w-0 flex-1 py-2.5 pr-4 pl-2.5 text-left ${surfaceOf(bucket)}`}
           >
             {/* A resource has one state, so its gutter has one segment; a
                 healthy resource shows none at all. */}

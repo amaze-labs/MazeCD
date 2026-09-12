@@ -23,7 +23,7 @@ export function AppRow({ app, color }: { app: App; color: string }) {
   return (
     <Link
       to={`/apps/${encodeURIComponent(app.instance)}/${encodeURIComponent(app.name)}`}
-      className={`relative block py-3 pr-4 pl-5 active:brightness-125 ${surfaceOf(bucket)}`}
+      className={`relative block py-3 pr-4 pl-5 ${surfaceOf(bucket)}`}
     >
       <StatusGutter health={app.health} sync={app.sync} />
       <span className="sr-only">
