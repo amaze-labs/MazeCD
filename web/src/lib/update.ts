@@ -38,11 +38,20 @@ export const RELOAD_KEY = 'mazecd:reloaded-for-version'
  * to prevent. Offering the same version repeatedly (a poll tick while the
  * toast is already standing) is harmless: it just re-arms an equivalent
  * apply function.
+ *
+ * `reload` is how the new build is actually brought in. A plain
+ * location.reload() is only right when no service worker is in control: the
+ * version poll usually wins the race against the worker's own update, and
+ * reloading while the old worker still serves the precached shell returns
+ * the same stale bundle -- after which the circuit breaker suppresses this
+ * watcher for that version for good. The caller passes an apply that
+ * activates the waiting worker when there is a registration.
  */
 export function checkVersion(
   serverVersion: string,
   bundleVersion: string,
   onAvailable: (apply: () => void) => void,
+  reload: () => void = () => window.location.reload(),
 ): void {
   let alreadyReloadedFor: string | null
   try {
@@ -58,7 +67,7 @@ export function checkVersion(
     } catch {
       return // Couldn't record the attempt: don't reload rather than risk a loop.
     }
-    window.location.reload()
+    reload()
   })
 }
 
@@ -78,6 +87,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
   let cancelled = false
   let swTimer: number | undefined
   let onSWVisible: (() => void) | undefined
+  let swRegistration: ServiceWorkerRegistration | undefined
 
   const applySW = registerSW({
     onNeedRefresh() {
@@ -85,6 +95,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
     },
     onRegisteredSW(_url, registration) {
       if (cancelled || !registration) return
+      swRegistration = registration
       const check = () => {
         if (navigator.onLine) void registration.update().catch(() => {})
       }
@@ -101,7 +112,13 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
     try {
       const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' })
       const body = (await res.json()) as { version?: string }
-      checkVersion(body.version ?? '', __BUILD_VERSION__, onAvailable)
+      // With a worker registered, hand off to it: it activates the waiting
+      // build and reloads once, instead of reloading into the shell the old
+      // worker is still serving. location.reload() stays the fallback for
+      // the case this poll genuinely exists for -- no worker at all.
+      checkVersion(body.version ?? '', __BUILD_VERSION__, onAvailable, () =>
+        swRegistration ? applySW(true) : window.location.reload(),
+      )
     } catch {
       // Offline or mid-deploy: the next tick tries again.
     }

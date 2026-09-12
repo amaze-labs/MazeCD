@@ -106,3 +106,22 @@ test('re-offering the same version after it was applied is harmless', () => {
   checkVersion('1.4.0', '1.3.0', secondOffer)
   expect(secondOffer).not.toHaveBeenCalled()
 })
+
+test('apply hands off to the supplied reload, after recording the version', () => {
+  const storage = fakeStorage()
+  vi.stubGlobal('sessionStorage', storage)
+  const windowReload = vi.fn()
+  vi.stubGlobal('window', { location: { reload: windowReload } })
+  // Stands in for activating the waiting service worker: reloading the page
+  // directly would just re-serve the shell the old worker still controls.
+  const handoff = vi.fn(() => {
+    expect(storage.getItem(RELOAD_KEY)).toBe('1.4.0')
+  })
+  const onAvailable = vi.fn()
+
+  checkVersion('1.4.0', '1.3.0', onAvailable, handoff)
+  ;(onAvailable.mock.calls[0][0] as () => void)()
+
+  expect(handoff).toHaveBeenCalledTimes(1)
+  expect(windowReload).not.toHaveBeenCalled()
+})
