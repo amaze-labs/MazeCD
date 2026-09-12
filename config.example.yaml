@@ -1,0 +1,19 @@
+# MazeCD configuration. Mount at /etc/mazecd/config.yaml (read-only).
+# Tokens are referenced as ${VAR} and taken from the environment, so they can
+# come from a Kubernetes secret and never sit in this file.
+listen: ":8080"
+
+instances:
+  - name: prod
+    url: https://argocd.prod.internal
+    token: ${ARGOCD_TOKEN_PROD}
+    color: "#ef4444"
+    # Adds an extra confirmation step to sync and every destructive action.
+    production: true
+    # caCert: /certs/prod-ca.pem
+    # insecureSkipVerify: false
+
+  - name: dev
+    url: https://argocd.dev.internal
+    token: ${ARGOCD_TOKEN_DEV}
+    color: "#3b82f6"

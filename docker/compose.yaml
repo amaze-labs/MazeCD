@@ -1,0 +1,19 @@
+services:
+  mazecd:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        VERSION: ${MAZECD_VERSION:-dev}
+    image: mazecd:${MAZECD_VERSION:-dev}
+    ports:
+      - "8080:8080"
+    environment:
+      MAZECD_CONFIG: /etc/mazecd/config.yaml
+      MAZECD_PASSWORD_HASH: ${MAZECD_PASSWORD_HASH:?run "mazecd hash" and export it}
+      MAZECD_SESSION_KEY: ${MAZECD_SESSION_KEY:?run "openssl rand -base64 32" and export it}
+      ARGOCD_TOKEN_PROD: ${ARGOCD_TOKEN_PROD:-}
+      ARGOCD_TOKEN_DEV: ${ARGOCD_TOKEN_DEV:-}
+    volumes:
+      - ../config.yaml:/etc/mazecd/config.yaml:ro
+    restart: unless-stopped
