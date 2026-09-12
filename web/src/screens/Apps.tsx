@@ -2,16 +2,18 @@ import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApps, useInstances } from '../api/queries'
 import { AppRow } from '../components/AppRow'
+import { FleetBar } from '../components/FleetBar'
+import { bucketOf, countBy, type Bucket } from '../lib/fleet'
 import { healthRank } from '../lib/status'
 import { usePullToRefresh } from '../lib/pullToRefresh'
 
-type Filter = { instance: string; broken: boolean; outOfSync: boolean; q: string }
+type Filter = { instance: string; state: Bucket | ''; q: string }
 
 export function Apps() {
   const apps = useApps()
   const instances = useInstances()
   const qc = useQueryClient()
-  const [filter, setFilter] = useState<Filter>({ instance: '', broken: false, outOfSync: false, q: '' })
+  const [filter, setFilter] = useState<Filter>({ instance: '', state: '', q: '' })
 
   const { pull, refreshing } = usePullToRefresh(() =>
     qc.invalidateQueries({ queryKey: ['apps'] }),
@@ -22,11 +24,13 @@ export function Apps() {
     [instances.data],
   )
 
+  const all = useMemo(() => apps.data?.apps ?? [], [apps.data])
+  const counts = useMemo(() => countBy(all), [all])
+
   const visible = useMemo(() => {
-    const list = (apps.data?.apps ?? []).filter((a) => {
+    const list = all.filter((a) => {
       if (filter.instance && a.instance !== filter.instance) return false
-      if (filter.broken && a.health !== 'Degraded' && a.health !== 'Missing') return false
-      if (filter.outOfSync && a.sync !== 'OutOfSync') return false
+      if (filter.state && bucketOf(a) !== filter.state) return false
       if (filter.q && !a.name.toLowerCase().includes(filter.q.toLowerCase())) return false
       return true
     })
@@ -37,72 +41,109 @@ export function Apps() {
         Number(b.sync === 'OutOfSync') - Number(a.sync === 'OutOfSync') ||
         a.name.localeCompare(b.name),
     )
-  }, [apps.data, filter])
+  }, [all, filter])
 
-  const chip = (active: boolean) =>
-    `flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm ${
-      active ? 'border-accent text-accent' : 'border-border text-muted'
-    }`
+  const filtered = filter.instance !== '' || filter.state !== '' || filter.q !== ''
 
   return (
     <div>
-      <header className="pt-safe sticky top-0 z-10 border-b border-border bg-bg/95 px-4 pb-3 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Applications</h1>
-          <span className="text-xs text-muted">
-            {visible.length}
-            {refreshing || apps.isFetching ? ' · refreshing' : ''}
+      {/* The fleet bar is the header's own bottom edge: no hairline under it,
+          because the bar already draws the line. */}
+      <header className="pt-safe sticky top-0 z-10 bg-ink/95 px-4 backdrop-blur">
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="t-name text-[26px]">Applications</h1>
+          <span className="shrink-0 text-[13px] text-muted">
+            {refreshing ? 'Updating' : filtered ? `${visible.length} of ${all.length}` : all.length}
           </span>
         </div>
-        <input
-          value={filter.q}
-          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
-          placeholder="Search"
-          className="mt-3 h-11 w-full rounded-lg border border-border bg-surface px-3 outline-none focus:border-accent"
-        />
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          <button className={chip(filter.broken)} onClick={() => setFilter({ ...filter, broken: !filter.broken })}>
-            Broken
-          </button>
-          <button
-            className={chip(filter.outOfSync)}
-            onClick={() => setFilter({ ...filter, outOfSync: !filter.outOfSync })}
-          >
-            OutOfSync
-          </button>
-          {(instances.data ?? []).map((i) => (
-            <button
-              key={i.name}
-              className={chip(filter.instance === i.name)}
-              onClick={() =>
-                setFilter({ ...filter, instance: filter.instance === i.name ? '' : i.name })
-              }
-            >
-              <span className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: i.color }} />
-              {i.name}
-            </button>
-          ))}
+        <div className="-mx-4">
+          <FleetBar
+            counts={counts}
+            active={filter.state}
+            onPick={(state) => setFilter({ ...filter, state })}
+          />
         </div>
       </header>
 
-      {pull > 0 && <div className="py-2 text-center text-xs text-muted">Pull to refresh</div>}
+      <div className="px-4 pt-3">
+        <input
+          value={filter.q}
+          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+          placeholder="Find an application"
+          aria-label="Find an application"
+          className="h-11 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted focus:bg-raised"
+        />
+        {(instances.data ?? []).length > 1 && (
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            {(instances.data ?? []).map((i) => {
+              const on = filter.instance === i.name
+              return (
+                <button
+                  key={i.name}
+                  onClick={() =>
+                    setFilter({ ...filter, instance: on ? '' : i.name })
+                  }
+                  aria-pressed={on}
+                  className={`flex h-11 shrink-0 items-center gap-2 rounded-pill px-3 text-[14px] ${
+                    on ? 'bg-raised text-text' : 'text-muted'
+                  }`}
+                >
+                  <span
+                    className="size-2 rounded-full"
+                    style={{ background: i.color, opacity: on ? 1 : 0.55 }}
+                  />
+                  {i.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {pull > 0 && <p className="pt-2 text-center text-[13px] text-muted">Keep pulling to refresh</p>}
 
       {(apps.data?.errors ?? []).map((e) => (
-        <div key={e.instance} className="border-b border-border bg-[#3a1d22] px-4 py-2 text-sm">
-          <strong>{e.instance}</strong> is unreachable — {e.message}
-        </div>
+        <p
+          key={e.instance}
+          className="mx-4 mt-3 rounded-pill bg-surface-degraded px-3 py-2.5 text-[13px] leading-snug"
+        >
+          <strong className="font-semibold">{e.instance}</strong> did not answer: {e.message}.
+          Applications from the other instances are still listed.
+        </p>
       ))}
 
       {apps.isError && (
-        <p className="p-4 text-sm text-[#e96d76]">Could not load applications: {String(apps.error)}</p>
+        <div className="mx-4 mt-3 rounded-pill bg-surface-degraded px-3 py-2.5 text-[13px] leading-snug">
+          <p>MazeCD could not load the fleet. Pull down to try again.</p>
+          <p className="t-mono mt-1 text-[12px] text-muted-tint">{String(apps.error)}</p>
+        </div>
       )}
 
-      {visible.map((a) => (
-        <AppRow key={`${a.instance}/${a.name}`} app={a} color={colors[a.instance] ?? '#8b93a7'} />
-      ))}
+      <div className="mt-3 flex flex-col gap-0.5 pb-2">
+        {visible.map((a) => (
+          <AppRow key={`${a.instance}/${a.name}`} app={a} color={colors[a.instance] ?? '#7E8C9A'} />
+        ))}
+      </div>
 
       {!apps.isLoading && visible.length === 0 && (
-        <p className="p-8 text-center text-sm text-muted">No applications match the filters.</p>
+        <div className="px-8 py-12 text-center">
+          {filtered ? (
+            <>
+              <p className="text-[15px]">No application matches this filter.</p>
+              <button
+                onClick={() => setFilter({ instance: '', state: '', q: '' })}
+                className="mt-3 h-11 rounded-control bg-raised px-4 text-[14px]"
+              >
+                Show all applications
+              </button>
+            </>
+          ) : (
+            <p className="text-[15px] leading-relaxed text-muted">
+              No applications yet. Check in Settings that an ArgoCD instance is configured and
+              its token is still valid.
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
