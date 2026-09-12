@@ -4,13 +4,18 @@
 # Tags are bare semver: 0.1.0, 1.2.3, ... (no "v" prefix).
 set -euo pipefail
 
-last="$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"
-
-if [ -z "$last" ]; then
+# --match would do double duty here (finding the nearest tag AND filtering
+# out anything malformed), and it's bad at the second job: a tag like "1.2"
+# fails the glob, git describe reports "no names found", and that looks
+# identical to a repository with no tags at all. So find the nearest tag
+# with no filter, and check "no tags anywhere" separately and explicitly.
+if [ -z "$(git tag -l)" ]; then
   echo "version=0.1.0"
   echo "skip=false"
   exit 0
 fi
+
+last="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 
 if ! [[ "$last" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "error: latest tag '${last}' is not a plain X.Y.Z semantic version; refusing to guess the next release" >&2
