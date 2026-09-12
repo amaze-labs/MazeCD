@@ -36,13 +36,15 @@ export function EventsTab({ instance, name }: { instance: string; name: string }
           className={`px-4 py-2.5 ${e.type === 'Warning' ? 'bg-surface-outofsync' : ''}`}
         >
           <p className="flex items-baseline gap-2">
-            <span
-              className={`text-[15px] font-semibold ${
-                e.type === 'Warning' ? 'text-outofsync' : 'text-text'
-              }`}
-            >
-              {e.reason}
-            </span>
+            {/* The word carries the type; the amber only reinforces it. A
+                tinted surface alone would be invisible to a reader who
+                cannot separate amber from the page. */}
+            {e.type === 'Warning' && (
+              <span className="shrink-0 rounded-pill bg-outofsync/15 px-1.5 py-px text-[12px] leading-4 font-medium text-outofsync">
+                Warning
+              </span>
+            )}
+            <span className="text-[15px] font-semibold">{e.reason}</span>
             <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
               {e.involvedObject?.kind} {e.involvedObject?.name}
             </span>

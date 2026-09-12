@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ResourceNode } from '../api/types'
-import { surfaceOf, bucketOf } from '../lib/fleet'
+import { surfaceOf, bucketOf, healthLoud } from '../lib/fleet'
 import { healthColor } from '../lib/status'
 
 type TreeNode = ResourceNode & { children: TreeNode[] }
@@ -76,8 +76,10 @@ export function Tree({
             className={`relative min-h-11 min-w-0 flex-1 py-2.5 pr-4 pl-2.5 text-left ${surfaceOf(bucket)}`}
           >
             {/* A resource has one state, so its gutter has one segment; a
-                healthy resource shows none at all. */}
-            {health !== 'Healthy' && health !== '' && (
+                healthy resource shows none at all. An empty health is an
+                absence rather than a state — ArgoCD assesses only some kinds
+                — so it draws nothing either. */}
+            {health !== '' && healthLoud(health) && (
               <span className="gutter" aria-hidden="true">
                 {health === 'Progressing' ? (
                   <span className="sweep" />

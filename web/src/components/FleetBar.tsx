@@ -1,9 +1,17 @@
 import type { Bucket } from '../lib/fleet'
 
+/**
+ * Read order is triage order, and every bucket carries ArgoCD's own colour
+ * for that state — including suspended and unknown, which exist here so that
+ * an application in either can be seen and counted rather than quietly
+ * swelling the healthy segment.
+ */
 const SEGMENTS: { key: Bucket; word: string; color: string }[] = [
   { key: 'Degraded', word: 'degraded', color: 'var(--color-degraded)' },
   { key: 'OutOfSync', word: 'out of sync', color: 'var(--color-outofsync)' },
   { key: 'Progressing', word: 'progressing', color: 'var(--color-progressing)' },
+  { key: 'Suspended', word: 'suspended', color: 'var(--color-suspended)' },
+  { key: 'Unknown', word: 'of unknown health', color: 'var(--color-unknown)' },
   { key: 'Healthy', word: 'healthy', color: 'var(--color-healthy)' },
 ]
 
@@ -15,7 +23,8 @@ const SEGMENTS: { key: Bucket; word: string; color: string }[] = [
  * flex-basis and grows from there, so two degraded applications out of
  * ninety-nine occupy about 50px instead of the eight they are owed — below
  * that they are neither tappable nor visible, which would defeat the whole
- * point of the bar. Everything above the basis is honest.
+ * point of the bar. Everything above the basis is honest. Empty buckets are
+ * not drawn at all, so a normal fleet shows two or three segments, not six.
  */
 export function FleetBar({
   counts,

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Health, SyncStatus } from '../api/types'
 import { healthColor, syncColor } from '../lib/status'
+import { healthLoud, syncLoud } from '../lib/fleet'
 
 /**
  * The vocabulary the whole interface is built from.
@@ -18,18 +19,19 @@ const tint = (color: string, percent: number) =>
  * The status gutter. A resting application shows it at a whisper — it reads
  * as the column's spine, not as a signal. Anything else brings it up to full
  * strength, and a progressing application's health segment sweeps.
+ *
+ * Loudness comes from the same two predicates the fleet bar counts with, so
+ * no row can draw a stripe the summary above it has filed under healthy.
  */
 export function StatusGutter({ health, sync }: { health: Health; sync: SyncStatus }) {
-  const healthLoud = health !== 'Healthy' && health !== ''
-  const syncLoud = sync === 'OutOfSync'
   return (
     <span className="gutter" aria-hidden="true">
       {health === 'Progressing' ? (
         <span className="sweep" />
       ) : (
-        <span style={{ background: tint(healthColor(health), healthLoud ? 100 : 18) }} />
+        <span style={{ background: tint(healthColor(health), healthLoud(health) ? 100 : 18) }} />
       )}
-      <span style={{ background: tint(syncColor(sync), syncLoud ? 100 : 18) }} />
+      <span style={{ background: tint(syncColor(sync), syncLoud(sync) ? 100 : 18) }} />
     </span>
   )
 }

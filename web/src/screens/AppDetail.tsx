@@ -204,63 +204,65 @@ export function AppDetailScreen() {
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
-      {tab === 'Tree' && (
-        <>
-          {/* Selection is rare and destructive-adjacent, so it is a mode you
-              enter on purpose. Until then the resource names own the width. */}
-          <div className="flex items-center justify-between gap-3 border-b border-rule px-4">
-            <span className="text-[13px] text-muted">
-              {selecting
-                ? selection.length === 0
-                  ? 'Pick the resources to sync'
-                  : `${selection.length} picked`
-                : `${tree.data?.nodes?.length ?? 0} resources`}
-            </span>
-            <span className="-mr-2 flex items-center">
-              <button
-                onClick={() => {
-                  setSelecting(!selecting)
-                  setSelection([])
-                }}
-                className="flex h-11 items-center px-2 text-[14px]"
-              >
-                {selecting ? 'Cancel' : 'Select'}
-              </button>
-              {selecting && selection.length > 0 && (
+      <div id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === 'Tree' && (
+          <>
+            {/* Selection is rare and destructive-adjacent, so it is a mode you
+                enter on purpose. Until then the resource names own the width. */}
+            <div className="flex items-center justify-between gap-3 border-b border-rule px-4">
+              <span className="text-[13px] text-muted">
+                {selecting
+                  ? selection.length === 0
+                    ? 'Pick the resources to sync'
+                    : `${selection.length} picked`
+                  : `${tree.data?.nodes?.length ?? 0} resources`}
+              </span>
+              <span className="-mr-2 flex items-center">
                 <button
-                  onClick={() => setSyncOpen(true)}
-                  className="ml-1 flex h-11 items-center rounded-pill bg-text px-3 text-[14px] font-semibold text-ink"
+                  onClick={() => {
+                    setSelecting(!selecting)
+                    setSelection([])
+                  }}
+                  className="flex h-11 items-center px-2 text-[14px]"
                 >
-                  Sync {selection.length}
+                  {selecting ? 'Cancel' : 'Select'}
                 </button>
-              )}
-            </span>
-          </div>
-          <Tree
-            nodes={tree.data?.nodes ?? []}
-            onSelect={setSelected}
-            selection={selection}
-            onToggleSelect={
-              selecting
-                ? (n) =>
-                    setSelection((cur) =>
-                      cur.some(
-                        (c) => c.kind === n.kind && c.name === n.name && c.namespace === n.namespace,
+                {selecting && selection.length > 0 && (
+                  <button
+                    onClick={() => setSyncOpen(true)}
+                    className="ml-1 flex h-11 items-center rounded-pill bg-text px-3 text-[14px] font-semibold text-ink"
+                  >
+                    Sync {selection.length}
+                  </button>
+                )}
+              </span>
+            </div>
+            <Tree
+              nodes={tree.data?.nodes ?? []}
+              onSelect={setSelected}
+              selection={selection}
+              onToggleSelect={
+                selecting
+                  ? (n) =>
+                      setSelection((cur) =>
+                        cur.some(
+                          (c) => c.kind === n.kind && c.name === n.name && c.namespace === n.namespace,
+                        )
+                          ? cur.filter(
+                              (c) =>
+                                !(c.kind === n.kind && c.name === n.name && c.namespace === n.namespace),
+                            )
+                          : [...cur, n],
                       )
-                        ? cur.filter(
-                            (c) =>
-                              !(c.kind === n.kind && c.name === n.name && c.namespace === n.namespace),
-                          )
-                        : [...cur, n],
-                    )
-                : undefined
-            }
-          />
-        </>
-      )}
-      {tab === 'Diff' && <DiffTab instance={instance} name={name} />}
-      {tab === 'Events' && <EventsTab instance={instance} name={name} />}
-      {tab === 'Manifest' && <ManifestTab instance={instance} name={name} />}
+                  : undefined
+              }
+            />
+          </>
+        )}
+        {tab === 'Diff' && <DiffTab instance={instance} name={name} />}
+        {tab === 'Events' && <EventsTab instance={instance} name={name} />}
+        {tab === 'Manifest' && <ManifestTab instance={instance} name={name} />}
+      </div>
 
       {selected && (
         <ResourceSheet

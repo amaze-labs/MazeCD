@@ -1,14 +1,21 @@
 import { Link } from 'react-router-dom'
 import type { App } from '../api/types'
 import { InstancePill, Revision, StatusGutter } from './ui'
-import { bucketOf, surfaceOf } from '../lib/fleet'
+import { bucketOf, surfaceOf, tinted, type Bucket } from '../lib/fleet'
 
 /**
+ * A tinted row always says why, in words, on a third line. That is the rule
+ * the colour-blind reading of this list depends on: amber against green is
+ * exactly the pairing that collapses, so being out of sync is carried by a
+ * sentence and by the row's height, not by its hue.
+ *
  * The list endpoint carries no health message — only health, sync and the
- * last operation phase — so the third line says the most specific true thing
+ * last operation phase — so a degraded row says the most specific true thing
  * those three support. The detail screen has the real message from ArgoCD.
  */
-function reason(app: App): string {
+function why(app: App, bucket: Bucket): string | null {
+  if (bucket === 'OutOfSync') return 'Out of sync with git.'
+  if (bucket !== 'Degraded') return null
   if (app.operationPhase === 'Failed' || app.operationPhase === 'Error')
     return 'Last sync failed. Open for the reason.'
   if (app.operationPhase === 'Terminating') return 'Sync is being terminated.'
@@ -19,7 +26,8 @@ function reason(app: App): string {
 export function AppRow({ app, color }: { app: App; color: string }) {
   const bucket = bucketOf(app)
   const busy = app.operationPhase === 'Running'
-  const quiet = bucket === 'Healthy' || bucket === 'Progressing'
+  const muted = tinted(bucket) ? 'text-muted-tint' : 'text-muted'
+  const line = why(app, bucket)
   return (
     <Link
       to={`/apps/${encodeURIComponent(app.instance)}/${encodeURIComponent(app.name)}`}
@@ -32,17 +40,23 @@ export function AppRow({ app, color }: { app: App; color: string }) {
       <h2 className="t-name text-[22px]">{app.name}</h2>
       <div className="mt-1 flex items-center gap-2">
         <InstancePill name={app.instance} color={color} />
-        <span className={`min-w-0 flex-1 truncate text-[13px] ${quiet ? 'text-muted' : 'text-muted-tint'}`}>
+        <span className={`min-w-0 flex-1 truncate text-[13px] ${muted}`}>
           {app.destNamespace || app.project}
         </span>
         {busy ? (
           <span className="shrink-0 text-[12px] text-progressing">Syncing</span>
         ) : (
-          <Revision sha={app.revision} className={quiet ? 'text-muted' : 'text-muted-tint'} />
+          <Revision sha={app.revision} className={muted} />
         )}
       </div>
-      {bucket === 'Degraded' && (
-        <p className="mt-1 text-[13px] leading-snug text-text-degraded">{reason(app)}</p>
+      {line && (
+        <p
+          className={`mt-1 text-[13px] leading-snug ${
+            bucket === 'Degraded' ? 'text-text-degraded' : 'text-muted-tint'
+          }`}
+        >
+          {line}
+        </p>
       )}
     </Link>
   )
