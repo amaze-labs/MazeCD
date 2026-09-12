@@ -161,6 +161,7 @@ export function AppDetailScreen() {
           instance={instance}
           instanceColor={meta?.color ?? '#8b93a7'}
           app={name}
+          production={production}
           onClose={() => setSelected(null)}
         />
       )}

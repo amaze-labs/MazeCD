@@ -14,17 +14,20 @@ export function ResourceSheet({
   instance,
   instanceColor,
   app,
+  production,
   onClose,
 }: {
   node: ResourceNode
   instance: string
   instanceColor: string
   app: string
+  production: boolean
   onClose: () => void
 }) {
   const isPod = node.kind === 'Pod'
   const [tab, setTab] = useState<(typeof TABS)[number]>(isPod ? 'Logs' : 'Manifest')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmAction, setConfirmAction] = useState('')
   const qc = useQueryClient()
 
   return (
@@ -60,11 +63,33 @@ export function ResourceSheet({
             instance={instance}
             app={app}
             node={node}
-            onDone={() => qc.invalidateQueries({ queryKey: ['tree', instance, app] })}
+            onRun={setConfirmAction}
             onDelete={() => setConfirmDelete(true)}
           />
         )}
       </div>
+
+      {/* The action list comes from ArgoCD and includes whatever argocd-cm
+          defines: `restart` on a Deployment is already a production event, and
+          a custom Rollout action can be far more. None of them gets to run on a
+          single tap without naming the instance and the application first. */}
+      <ConfirmSheet
+        open={confirmAction !== ''}
+        title={`Run ${confirmAction}`}
+        instance={instance}
+        instanceColor={instanceColor}
+        app={app}
+        body={`${confirmAction} on ${node.kind} ${node.name}.${
+          production ? ' This is a production instance.' : ''
+        }`}
+        confirmLabel={`Run ${confirmAction}`}
+        destructive={false}
+        onConfirm={async () => {
+          await runResourceAction(instance, app, node, confirmAction)
+          await qc.invalidateQueries({ queryKey: ['tree', instance, app] })
+        }}
+        onClose={() => setConfirmAction('')}
+      />
 
       <ConfirmSheet
         open={confirmDelete}
@@ -174,18 +199,15 @@ function Actions({
   instance,
   app,
   node,
-  onDone,
+  onRun,
   onDelete,
 }: {
   instance: string
   app: string
   node: ResourceNode
-  onDone: () => void
+  onRun: (action: string) => void
   onDelete: () => void
 }) {
-  const [busy, setBusy] = useState('')
-  const [error, setError] = useState('')
-
   // Asking ArgoCD which actions exist beats hard-coding a kind list: custom
   // resource actions defined in argocd-cm show up for free.
   const q = useQuery({
@@ -207,19 +229,6 @@ function Actions({
     refetchInterval: false,
   })
 
-  async function run(action: string) {
-    setBusy(action)
-    setError('')
-    try {
-      await runResourceAction(instance, app, node, action)
-      onDone()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy('')
-    }
-  }
-
   return (
     <div className="flex flex-col gap-2">
       {(q.data?.actions ?? [])
@@ -227,17 +236,15 @@ function Actions({
         .map((a) => (
           <button
             key={a.name}
-            onClick={() => run(a.name)}
-            disabled={busy !== ''}
-            className="h-12 rounded-lg border border-border text-sm capitalize disabled:opacity-40"
+            onClick={() => onRun(a.name)}
+            className="h-12 rounded-lg border border-border text-sm capitalize"
           >
-            {busy === a.name ? 'Running…' : a.name}
+            {a.name}
           </button>
         ))}
       <button onClick={onDelete} className="h-12 rounded-lg border border-[#e96d76] text-sm text-[#e96d76]">
         Delete {node.kind}
       </button>
-      {error && <p className="text-sm text-[#e96d76]">{error}</p>}
     </div>
   )
 }
