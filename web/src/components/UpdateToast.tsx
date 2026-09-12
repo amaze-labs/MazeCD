@@ -13,11 +13,13 @@ export function UpdateToast() {
     const stop = watchForUpdates((fn) => {
       applyRef.current = fn
       setApply(() => fn)
-      const busy = document.querySelector('[role="dialog"]') !== null
-      if (!busy) {
-        // Give React a tick to paint the toast before the reload.
-        window.setTimeout(() => applyRef.current?.(), 400)
-      }
+      // Give React a tick to paint the toast before the reload, then
+      // re-check right before applying: a sheet may have opened during
+      // the delay, and its state must not be thrown away.
+      window.setTimeout(() => {
+        const busy = document.querySelector('[role="dialog"]') !== null
+        if (!busy) applyRef.current?.()
+      }, 400)
     })
     return stop
   }, [])
