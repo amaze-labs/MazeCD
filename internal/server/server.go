@@ -16,8 +16,6 @@ type Options struct {
 	PasswordHash string
 	Version      string
 	Static       http.Handler
-	// Passkeys is optional; nil disables the passkey routes (Task 19).
-	Passkeys interface{ Mount(*http.ServeMux) }
 }
 
 // New builds the complete handler: API under /api, PWA everywhere else.
@@ -29,9 +27,6 @@ func New(opts Options) http.Handler {
 	})
 
 	auth.NewHandler(opts.PasswordHash, opts.Sessions).Mount(api)
-	if opts.Passkeys != nil {
-		opts.Passkeys.Mount(api)
-	}
 
 	require := opts.Sessions.Require
 
