@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -67,6 +68,14 @@ func Load(path string) (*Config, error) {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return nil, fmt.Errorf("config: instance %q has an invalid url %q", inst.Name, inst.URL)
 		}
+		// Normalize here, once, because the two consumers join this base
+		// differently: the proxy concatenates the path, the API client uses
+		// JoinPath. A trailing slash -- perfectly natural to write -- would
+		// otherwise send every proxied request to //api/v1/... while the
+		// aggregated list and the health probe kept working.
+		u.Path = strings.TrimSuffix(u.Path, "/")
+		u.RawPath, u.RawQuery, u.Fragment = "", "", ""
+		inst.URL = u.String()
 		if inst.Token == "" {
 			return nil, fmt.Errorf("config: instance %q has no token", inst.Name)
 		}

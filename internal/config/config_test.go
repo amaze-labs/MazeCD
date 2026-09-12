@@ -123,3 +123,28 @@ instances:
 		t.Error("unknown instance was found")
 	}
 }
+
+// The proxy concatenates this base path and the API client joins it, so a
+// trailing slash that reaches either of them is a silent half-outage: the
+// aggregated list keeps working while every proxied call 404s on //api/v1.
+func TestLoadNormalizesInstanceURL(t *testing.T) {
+	t.Setenv("TOK", "s3cret")
+	for _, tc := range []struct{ name, url, want string }{
+		{"bare", "https://argocd.prod.internal", "https://argocd.prod.internal"},
+		{"trailing slash", "https://argocd.prod.internal/", "https://argocd.prod.internal"},
+		{"base path", "https://argocd.prod.internal/argocd", "https://argocd.prod.internal/argocd"},
+		{"base path with slash", "https://argocd.prod.internal/argocd/", "https://argocd.prod.internal/argocd"},
+		{"query and fragment", "https://argocd.prod.internal/?a=b#c", "https://argocd.prod.internal"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := writeConfig(t, "instances:\n  - name: prod\n    url: "+tc.url+"\n    token: ${TOK}\n")
+			cfg, err := Load(p)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := cfg.Instances[0].URL; got != tc.want {
+				t.Errorf("URL = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
