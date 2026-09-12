@@ -1,27 +1,81 @@
 @import 'tailwindcss';
 
+/* Bundled, not fetched: MazeCD has to render on a hotel connection with the
+   ArgoCD API barely reachable. The faces are declared by hand rather than
+   imported from the fontsource stylesheets so only the latin subsets ship —
+   the service worker precaches everything it is given, and the latin-ext and
+   vietnamese cuts would add 120 kB that nothing in this interface can use.
+   `wdth` rather than `wght`: the width axis is what keeps long application
+   names from truncating. */
+@font-face {
+  font-family: 'Archivo Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url('@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2')
+    format('woff2-variations');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2')
+    format('woff2');
+}
+
 @theme {
-  --color-bg: #0b0e14;
-  --color-surface: #131823;
-  --color-surface-2: #1b2130;
-  --color-border: #263041;
-  --color-text: #e6ebf4;
-  --color-muted: #8b93a7;
-  --color-accent: #6ea8fe;
+  /* Surfaces, darkest to lightest. */
+  --color-ink: #0a0f14;
+  --color-panel: #121a22;
+  --color-raised: #18222d;
+  --color-inset: #1b2630;
+  --color-rule: #263240;
+  --color-text: #e8eef4;
+  --color-muted: #7e8c9a;
+  /* Muted text sitting on a state-tinted surface, where plain --color-muted
+     falls just under 4.5:1. */
+  --color-muted-tint: #98a5b2;
+
+  /* ArgoCD's own status colours. Operators read these as muscle memory, so
+     they are the only saturated colour in the interface: colour means state
+     here and nothing else. */
+  --color-healthy: #18be94;
+  --color-progressing: #0daeeb;
+  --color-degraded: #e96d76;
+  --color-outofsync: #f4c030;
+  --color-suspended: #766f94;
+  --color-unknown: #ccd6dd;
+
+  /* Ink shifted toward a status hue. Surfaces, not status colour: white text
+     has to stay comfortably readable on them. */
+  --color-surface-degraded: #3a1b21;
+  --color-surface-outofsync: #201a0f;
+  --color-text-degraded: #f2b8bd;
+
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radius by role, not one radius for everything. */
+  --radius-sheet: 14px;
+  --radius-control: 14px;
+  --radius-pill: 10px;
 }
 
 html {
   color-scheme: dark;
-  background: var(--color-bg);
+  background: var(--color-ink);
   /* Keep the layout stable under the iOS keyboard and address bar. */
   height: 100%;
 }
 
 body {
   margin: 0;
-  background: var(--color-bg);
+  background: var(--color-ink);
   color: var(--color-text);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
+  font-synthesis: none;
   overscroll-behavior-y: contain;
   -webkit-tap-highlight-color: transparent;
 }
@@ -29,3 +83,69 @@ body {
 /* Safe areas for the standalone PWA on notched phones. */
 .pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
 .pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+
+/* One visible focus treatment everywhere, in text colour rather than an
+   accent hue, so a focus ring is never mistaken for a status. */
+:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* The interface face carries names of machines: narrowed to 90 so
+   `platform-ingress-controller-prod` fits a 390px screen at 22px without
+   truncating, tightened because at that size default tracking reads loose. */
+.t-name {
+  font-weight: 600;
+  font-stretch: 90%;
+  letter-spacing: -0.015em;
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  letter-spacing: -0.02em;
+}
+
+/* The status gutter: the product's one structural device. A row's left edge
+   carries health above and sync below, so the two states that used to be
+   indistinguishable green dots are now different places. */
+.gutter {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 3px;
+  display: flex;
+  flex-direction: column;
+}
+.gutter > * { flex: 1; }
+
+/* Progressing: a slow vertical sweep down the gutter. The only motion in the
+   app that a person did not ask for. */
+.sweep {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-progressing) 24%, transparent);
+}
+.sweep::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  height: 55%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--color-progressing) 45%,
+    var(--color-progressing) 55%,
+    transparent
+  );
+  animation: sweep 1900ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes sweep {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(282%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sweep::after { animation: none; transform: none; height: 100%; background: var(--color-progressing); }
+}
