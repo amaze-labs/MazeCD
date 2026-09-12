@@ -25,7 +25,42 @@ export function shouldReload(
   return isStale(serverVersion, bundleVersion) && serverVersion !== alreadyReloadedFor
 }
 
-const RELOAD_KEY = 'mazecd:reloaded-for-version'
+export const RELOAD_KEY = 'mazecd:reloaded-for-version'
+
+/**
+ * Offers a reload only when `shouldReload` allows it, and records the server
+ * version in `sessionStorage` only at the moment the reload is actually
+ * applied -- never merely offered. A reload the user (or the auto-apply
+ * timer) never actually makes must not block a future re-offer of that same
+ * version, e.g. after a rollback. Storage failures fail toward not reloading
+ * -- skipping the offer, or refusing to apply -- never toward reloading
+ * without a way to remember it, which would risk the very loop this exists
+ * to prevent. Offering the same version repeatedly (a poll tick while the
+ * toast is already standing) is harmless: it just re-arms an equivalent
+ * apply function.
+ */
+export function checkVersion(
+  serverVersion: string,
+  bundleVersion: string,
+  onAvailable: (apply: () => void) => void,
+): void {
+  let alreadyReloadedFor: string | null
+  try {
+    alreadyReloadedFor = sessionStorage.getItem(RELOAD_KEY)
+  } catch {
+    return // Storage unavailable: don't offer a reload we can't remember making.
+  }
+  if (!shouldReload(serverVersion, bundleVersion, alreadyReloadedFor)) return
+
+  onAvailable(() => {
+    try {
+      sessionStorage.setItem(RELOAD_KEY, serverVersion)
+    } catch {
+      return // Couldn't record the attempt: don't reload rather than risk a loop.
+    }
+    window.location.reload()
+  })
+}
 
 /**
  * Three independent mechanisms keep a client from getting stuck on an old
@@ -34,6 +69,13 @@ const RELOAD_KEY = 'mazecd:reloaded-for-version'
  * server reports.
  */
 export function watchForUpdates(onAvailable: (apply: () => void) => void): () => void {
+  // registerSW's onRegisteredSW fires once the registration promise resolves
+  // -- asynchronously, and possibly after this effect has already been torn
+  // down (React StrictMode mounts, cleans up, and remounts synchronously,
+  // well before that promise settles). Without this flag, a teardown that
+  // lands first clears nothing (there is nothing yet to clear), and the
+  // interval and listener onRegisteredSW then sets up outlive it forever.
+  let cancelled = false
   let swTimer: number | undefined
   let onSWVisible: (() => void) | undefined
 
@@ -42,7 +84,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
       onAvailable(() => applySW(true))
     },
     onRegisteredSW(_url, registration) {
-      if (!registration) return
+      if (cancelled || !registration) return
       const check = () => {
         if (navigator.onLine) void registration.update().catch(() => {})
       }
@@ -59,22 +101,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
     try {
       const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' })
       const body = (await res.json()) as { version?: string }
-      const serverVersion = body.version ?? ''
-
-      let alreadyReloadedFor: string | null
-      try {
-        alreadyReloadedFor = sessionStorage.getItem(RELOAD_KEY)
-      } catch {
-        return // Storage unavailable: don't reload rather than risk a loop we can't suppress.
-      }
-      if (!shouldReload(serverVersion, __BUILD_VERSION__, alreadyReloadedFor)) return
-
-      try {
-        sessionStorage.setItem(RELOAD_KEY, serverVersion)
-      } catch {
-        return // Couldn't record the attempt: don't reload rather than risk a loop.
-      }
-      onAvailable(() => window.location.reload())
+      checkVersion(body.version ?? '', __BUILD_VERSION__, onAvailable)
     } catch {
       // Offline or mid-deploy: the next tick tries again.
     }
@@ -87,6 +114,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
   document.addEventListener('visibilitychange', onVisible)
 
   return () => {
+    cancelled = true
     window.clearInterval(versionTimer)
     document.removeEventListener('visibilitychange', onVisible)
     if (swTimer !== undefined) window.clearInterval(swTimer)
