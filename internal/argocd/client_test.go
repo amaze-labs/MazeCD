@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/amaze-labs/MazeCD/internal/config"

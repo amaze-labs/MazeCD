@@ -38,7 +38,9 @@ func (r *Registry) Instances(ctx context.Context) []InstanceInfo {
 			reqCtx, cancel := context.WithTimeout(ctx, instanceTimeout)
 			defer cancel()
 
-			var userinfo struct{ LoggedIn bool `json:"loggedIn"` }
+			var userinfo struct {
+				LoggedIn bool `json:"loggedIn"`
+			}
 			err := c.Get(reqCtx, "session/userinfo", &userinfo)
 			switch {
 			case err == nil && userinfo.LoggedIn:

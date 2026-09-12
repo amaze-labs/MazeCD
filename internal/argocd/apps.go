@@ -65,9 +65,9 @@ type applicationList struct {
 // Apps queries every instance in parallel and merges the results.
 func (r *Registry) Apps(ctx context.Context) AppsResponse {
 	var (
-		mu   sync.Mutex
-		res  = AppsResponse{Apps: []App{}, Errors: []InstanceError{}}
-		wg   sync.WaitGroup
+		mu  sync.Mutex
+		res = AppsResponse{Apps: []App{}, Errors: []InstanceError{}}
+		wg  sync.WaitGroup
 	)
 	for _, c := range r.All() {
 		wg.Add(1)
