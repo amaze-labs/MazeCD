@@ -13,22 +13,42 @@ export function EventsTab({ instance, name }: { instance: string; name: string }
     (b.lastTimestamp ?? '').localeCompare(a.lastTimestamp ?? ''),
   )
 
-  if (q.isLoading) return <p className="p-4 text-sm text-muted">Loading events…</p>
-  if (q.isError) return <p className="p-4 text-sm text-[#e96d76]">{String(q.error)}</p>
-  if (items.length === 0) return <p className="p-8 text-center text-sm text-muted">No events.</p>
+  if (q.isLoading) return <p className="p-4 text-[14px] text-muted">Loading events…</p>
+  if (q.isError)
+    return (
+      <p className="p-4 text-[14px] leading-snug text-degraded">
+        Could not load events: {String(q.error)}
+      </p>
+    )
+  if (items.length === 0)
+    return (
+      <p className="px-8 py-12 text-center text-[15px] leading-relaxed text-muted">
+        Kubernetes has reported no events for this application. Events expire, so an older
+        failure may already have aged out.
+      </p>
+    )
 
   return (
-    <ul className="divide-y divide-border">
+    <ul className="flex flex-col gap-0.5 py-1">
       {items.map((e, i) => (
-        <li key={i} className="px-4 py-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className={e.type === 'Warning' ? 'text-[#f4c030]' : 'text-muted'}>{e.reason}</span>
-            <span className="text-xs text-muted">
+        <li
+          key={i}
+          className={`px-4 py-2.5 ${e.type === 'Warning' ? 'bg-surface-outofsync' : ''}`}
+        >
+          <p className="flex items-baseline gap-2">
+            <span
+              className={`text-[15px] font-semibold ${
+                e.type === 'Warning' ? 'text-outofsync' : 'text-text'
+              }`}
+            >
+              {e.reason}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
               {e.involvedObject?.kind} {e.involvedObject?.name}
             </span>
-          </div>
-          <p className="mt-1 text-sm text-muted">{e.message}</p>
-          <p className="mt-1 text-[11px] text-muted">{e.lastTimestamp}</p>
+          </p>
+          <p className="mt-1 text-[14px] leading-snug text-muted">{e.message}</p>
+          <p className="t-mono mt-1 text-[11px] text-muted">{e.lastTimestamp}</p>
         </li>
       ))}
     </ul>

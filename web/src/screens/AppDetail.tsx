@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
 import { Tabs } from '../components/Tabs'
 import { Tree } from '../components/Tree'
-import { StatusDot } from '../components/StatusDot'
+import { BackIcon, InstancePill, Revision, StatePair, TrashIcon } from '../components/ui'
 import { SyncSheet } from '../components/SyncSheet'
 import { ResourceSheet } from '../components/ResourceSheet'
 import { HistorySheet } from '../components/HistorySheet'
@@ -18,6 +18,8 @@ import { ManifestTab } from './tabs/ManifestTab'
 import type { ResourceNode } from '../api/types'
 
 const TABS = ['Tree', 'Diff', 'Events', 'Manifest'] as const
+
+const OUTLINE = 'h-11 flex-1 rounded-control border border-rule text-[15px] active:bg-raised'
 
 export function AppDetailScreen() {
   const { instance = '', name = '' } = useParams()
@@ -40,9 +42,11 @@ export function AppDetailScreen() {
   const [syncOpen, setSyncOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [selecting, setSelecting] = useState(false)
   const [selection, setSelection] = useState<ResourceNode[]>([])
   const [actionError, setActionError] = useState('')
   const running = op?.phase === 'Running'
+  const color = meta?.color ?? '#7E8C9A'
 
   const invalidate = () =>
     Promise.all([
@@ -81,32 +85,48 @@ export function AppDetailScreen() {
 
   return (
     <div>
-      <header className="pt-safe sticky top-0 z-10 border-b border-border bg-bg/95 px-4 pb-3 backdrop-blur">
-        <Link to="/" className="text-sm text-accent">
-          ← Applications
+      <header className="pt-safe sticky top-0 z-10 border-b border-rule bg-ink/95 px-4 pb-3 backdrop-blur">
+        <Link
+          to="/"
+          className="-ml-2 flex h-11 w-fit items-center gap-1 pr-3 pl-2 text-[14px] text-muted"
+        >
+          <BackIcon />
+          Applications
         </Link>
-        <div className="mt-2 flex items-center gap-2">
-          <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{name}</h1>
-          <StatusDot health={status?.health?.status ?? ''} sync={status?.sync?.status ?? ''} />
+
+        <h1 className="t-name mt-0.5 text-[26px]">{name}</h1>
+
+        <div className="mt-1.5 flex items-center gap-2">
+          <InstancePill name={instance} color={color} />
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
+            {detail.data?.spec.destination.namespace || detail.data?.spec.project}
+          </span>
+          <Revision sha={status?.sync?.revision} className="text-muted" />
         </div>
-        <p className="mt-1 text-xs text-muted">
-          {instance} · {detail.data?.spec.project} · {detail.data?.spec.destination.namespace} ·{' '}
-          {status?.sync?.revision?.slice(0, 7)}
-        </p>
-        {op && (
-          <p className="mt-2 text-xs">
-            <span className="text-accent">{op.phase}</span>
-            {op.message ? ` — ${op.message}` : ''}
+
+        <div className="mt-3 flex items-start justify-between gap-4">
+          <StatePair health={status?.health?.status ?? ''} sync={status?.sync?.status ?? ''} />
+          {op && (
+            <p className="max-w-[60%] text-right text-[13px] leading-snug text-muted">
+              <span className={op.phase === 'Failed' ? 'text-degraded' : 'text-progressing'}>
+                {op.phase}
+              </span>
+              {op.message ? ` — ${op.message}` : ''}
+            </p>
+          )}
+        </div>
+
+        {status?.health?.message && (
+          <p className="mt-2 rounded-pill bg-surface-degraded px-3 py-2 text-[13px] leading-snug text-text-degraded">
+            {status.health.message}
           </p>
         )}
-        {status?.health?.message && (
-          <p className="mt-2 text-xs text-[#f4c030]">{status.health.message}</p>
-        )}
+
         <div className="mt-3 flex gap-2">
           <button
             onClick={() => setSyncOpen(true)}
             disabled={running || !instances.data || !online}
-            className="h-11 flex-1 rounded-lg bg-accent font-medium text-bg disabled:opacity-40"
+            className="h-12 flex-[2] rounded-control bg-text text-[15px] font-semibold text-ink disabled:opacity-40"
           >
             Sync
           </button>
@@ -140,55 +160,93 @@ export function AppDetailScreen() {
               e.preventDefault()
               hardRefresh()
             }}
-            className="h-11 flex-1 select-none rounded-lg border border-border"
-            title="Long press or right click for a hard refresh"
+            className="h-12 flex-1 rounded-control border border-rule text-[15px] select-none active:bg-raised"
+            title="Long press or right click to refresh with the manifests re-rendered"
           >
             Refresh
+          </button>
+        </div>
+
+        <div className="mt-2 flex gap-2">
+          <button onClick={() => setHistoryOpen(true)} className={OUTLINE}>
+            History
           </button>
           {running && (
             <button
               onClick={() => act(() => terminateOperation(instance, name))}
-              className="h-11 flex-1 rounded-lg border border-[#e96d76] text-[#e96d76]"
+              className="h-11 flex-1 rounded-control border border-degraded text-[15px] text-degraded"
             >
               Terminate
             </button>
           )}
-          <button onClick={() => setHistoryOpen(true)} className="h-11 flex-1 rounded-lg border border-border">
-            History
-          </button>
           <button
             onClick={() => setDeleteOpen(true)}
-            className="h-11 w-11 rounded-lg border border-[#e96d76] text-[#e96d76]"
+            className="flex size-11 shrink-0 items-center justify-center rounded-control border border-degraded text-degraded"
             aria-label="Delete application"
           >
-            ✕
+            <TrashIcon />
           </button>
         </div>
-        {actionError && <p className="mt-2 text-xs text-[#e96d76]">{actionError}</p>}
+
+        {actionError && (
+          <p className="mt-2 text-[13px] leading-snug text-degraded">
+            That did not go through: {actionError}
+          </p>
+        )}
       </header>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
       {tab === 'Tree' && (
         <>
-          {selection.length > 0 && (
-            <div className="flex items-center justify-between border-b border-border px-4 py-2 text-sm">
-              <span>{selection.length} selected for sync</span>
-              <button className="text-accent" onClick={() => setSelection([])}>
-                Clear
+          {/* Selection is rare and destructive-adjacent, so it is a mode you
+              enter on purpose. Until then the resource names own the width. */}
+          <div className="flex items-center justify-between gap-3 border-b border-rule px-4">
+            <span className="text-[13px] text-muted">
+              {selecting
+                ? selection.length === 0
+                  ? 'Pick the resources to sync'
+                  : `${selection.length} picked`
+                : `${tree.data?.nodes?.length ?? 0} resources`}
+            </span>
+            <span className="-mr-2 flex items-center">
+              <button
+                onClick={() => {
+                  setSelecting(!selecting)
+                  setSelection([])
+                }}
+                className="flex h-11 items-center px-2 text-[14px]"
+              >
+                {selecting ? 'Cancel' : 'Select'}
               </button>
-            </div>
-          )}
+              {selecting && selection.length > 0 && (
+                <button
+                  onClick={() => setSyncOpen(true)}
+                  className="ml-1 flex h-11 items-center rounded-pill bg-text px-3 text-[14px] font-semibold text-ink"
+                >
+                  Sync {selection.length}
+                </button>
+              )}
+            </span>
+          </div>
           <Tree
             nodes={tree.data?.nodes ?? []}
             onSelect={setSelected}
             selection={selection}
-            onToggleSelect={(n) =>
-              setSelection((cur) =>
-                cur.some((c) => c.kind === n.kind && c.name === n.name && c.namespace === n.namespace)
-                  ? cur.filter((c) => !(c.kind === n.kind && c.name === n.name && c.namespace === n.namespace))
-                  : [...cur, n],
-              )
+            onToggleSelect={
+              selecting
+                ? (n) =>
+                    setSelection((cur) =>
+                      cur.some(
+                        (c) => c.kind === n.kind && c.name === n.name && c.namespace === n.namespace,
+                      )
+                        ? cur.filter(
+                            (c) =>
+                              !(c.kind === n.kind && c.name === n.name && c.namespace === n.namespace),
+                          )
+                        : [...cur, n],
+                    )
+                : undefined
             }
           />
         </>
@@ -201,7 +259,7 @@ export function AppDetailScreen() {
         <ResourceSheet
           node={selected}
           instance={instance}
-          instanceColor={meta?.color ?? '#8b93a7'}
+          instanceColor={color}
           app={name}
           production={production}
           onClose={() => setSelected(null)}
@@ -212,7 +270,7 @@ export function AppDetailScreen() {
         open={syncOpen}
         onClose={() => setSyncOpen(false)}
         instance={instance}
-        instanceColor={meta?.color ?? '#8b93a7'}
+        instanceColor={color}
         name={name}
         production={production}
         selection={selection}
@@ -222,7 +280,7 @@ export function AppDetailScreen() {
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         instance={instance}
-        instanceColor={meta?.color ?? '#8b93a7'}
+        instanceColor={color}
         name={name}
         history={status?.history ?? []}
         currentRevision={status?.sync?.revision}
@@ -232,7 +290,7 @@ export function AppDetailScreen() {
         open={deleteOpen}
         title="Delete application"
         instance={instance}
-        instanceColor={meta?.color ?? '#8b93a7'}
+        instanceColor={color}
         app={name}
         body="Cascade delete: the application and every resource it manages are removed from the cluster."
         confirmLabel="Delete application"

@@ -58,19 +58,30 @@ export function DiffTab({ instance, name }: { instance: string; name: string }) 
     [q.data],
   )
 
-  if (q.isLoading) return <p className="p-4 text-sm text-muted">Loading diff…</p>
-  if (q.isError) return <p className="p-4 text-sm text-[#e96d76]">{String(q.error)}</p>
-  if (changed.length === 0) return <p className="p-8 text-center text-sm text-muted">No differences.</p>
+  if (q.isLoading) return <p className="p-4 text-[14px] text-muted">Comparing live state with git…</p>
+  if (q.isError)
+    return (
+      <p className="p-4 text-[14px] leading-snug text-degraded">
+        Could not compare: {String(q.error)}
+      </p>
+    )
+  if (changed.length === 0)
+    return (
+      <p className="px-8 py-12 text-center text-[15px] leading-relaxed text-muted">
+        Live state matches git. There is nothing to apply.
+      </p>
+    )
 
   return (
-    <div className="divide-y divide-border">
+    <div className="flex flex-col gap-0.5">
       {changed.map(({ r, patch }) => {
         return (
           <section key={`${r.group}/${r.kind}/${r.namespace}/${r.name}`} className="py-3">
-            <h3 className="px-4 text-sm font-medium">
-              {r.kind} <span className="text-muted">{r.name}</span>
+            <h3 className="px-4">
+              <span className="block text-[11px] leading-[14px] text-muted">{r.kind}</span>
+              <span className="t-name block text-[15px]">{r.name}</span>
             </h3>
-            <pre className="mt-2 overflow-x-auto px-4 text-[11px] leading-relaxed">
+            <pre className="t-mono mt-2 overflow-x-auto px-4 text-[11px] leading-relaxed">
               {patch
                 .split('\n')
                 .slice(4)
@@ -79,9 +90,9 @@ export function DiffTab({ instance, name }: { instance: string; name: string }) 
                     key={i}
                     className={
                       line.startsWith('+')
-                        ? 'text-[#18be94]'
+                        ? 'text-healthy'
                         : line.startsWith('-')
-                          ? 'text-[#e96d76]'
+                          ? 'text-degraded'
                           : 'text-muted'
                     }
                   >
