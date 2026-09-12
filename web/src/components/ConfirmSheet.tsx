@@ -36,12 +36,27 @@ export function ConfirmSheet({
   const [error, setError] = useState('')
   const ready = !requireTyping || typed === app
 
+  // The sheet stays mounted when closed, so a name typed and then thought
+  // better of would still be there -- with the button already armed -- the
+  // next time it opened. Reset on the open->false edge only (the same
+  // pattern as SyncSheet), adjusted during render rather than in an effect
+  // so it lands in the same commit and never fires while the sheet is open.
+  // `busy` is deliberately untouched: an in-flight delete must keep the
+  // button disabled until it settles.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) {
+      setTyped('')
+      setError('')
+    }
+  }
+
   async function go() {
     setBusy(true)
     setError('')
     try {
       await onConfirm()
-      setTyped('')
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
