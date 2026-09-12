@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createTwoFilesPatch } from 'diff'
 import { api, argoPath } from '../../api/client'
@@ -34,9 +35,28 @@ export function DiffTab({ instance, name }: { instance: string; name: string }) 
       api.get<{ items?: ManagedResource[] }>(
         argoPath(instance, `applications/${name}/managed-resources`),
       ),
+    // managed-resources returns the full live and desired state of every
+    // resource in the application: the heaviest endpoint ArgoCD has, and no
+    // candidate for the global 8s poll. Pull-to-refresh and tab switches
+    // still refetch it. ManifestTab opts out for the same reason.
+    refetchInterval: false,
   })
 
-  const changed = (q.data?.items ?? []).filter((r) => pretty(r.liveState) !== pretty(r.targetState))
+  // A JSON parse, a recursive key sort and a stringify over both states of
+  // every resource, then a patch per changed resource -- all of it in the
+  // render body, on a parent that re-renders on every poll tick. Keyed on
+  // the query data, it runs once per fetch instead.
+  const changed = useMemo(
+    () =>
+      (q.data?.items ?? [])
+        .map((r) => ({ r, live: pretty(r.liveState), desired: pretty(r.targetState) }))
+        .filter(({ live, desired }) => live !== desired)
+        .map(({ r, live, desired }) => ({
+          r,
+          patch: createTwoFilesPatch('live', 'desired', live, desired, '', '', { context: 3 }),
+        })),
+    [q.data],
+  )
 
   if (q.isLoading) return <p className="p-4 text-sm text-muted">Loading diff…</p>
   if (q.isError) return <p className="p-4 text-sm text-[#e96d76]">{String(q.error)}</p>
@@ -44,16 +64,7 @@ export function DiffTab({ instance, name }: { instance: string; name: string }) 
 
   return (
     <div className="divide-y divide-border">
-      {changed.map((r) => {
-        const patch = createTwoFilesPatch(
-          'live',
-          'desired',
-          pretty(r.liveState),
-          pretty(r.targetState),
-          '',
-          '',
-          { context: 3 },
-        )
+      {changed.map(({ r, patch }) => {
         return (
           <section key={`${r.group}/${r.kind}/${r.namespace}/${r.name}`} className="py-3">
             <h3 className="px-4 text-sm font-medium">
