@@ -96,28 +96,35 @@ export function AppDetailScreen() {
 
         <h1 className="t-name mt-0.5 text-[26px]">{name}</h1>
 
-        <div className="mt-1.5 flex items-center gap-2">
-          <InstancePill name={instance} color={color} />
-          <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
-            {detail.data?.spec.destination.namespace || detail.data?.spec.project}
+        {/* Identity on the left, state on the right, both two lines deep:
+            this header stays pinned while the tree scrolls under it, so
+            every row of it has to earn its height. */}
+        <div className="mt-1.5 flex items-start justify-between gap-4">
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="flex items-center gap-2">
+              <InstancePill name={instance} color={color} />
+              <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
+                {detail.data?.spec.destination.namespace || detail.data?.spec.project}
+              </span>
+            </span>
+            <Revision sha={status?.sync?.revision} className="text-muted" />
           </span>
-          <Revision sha={status?.sync?.revision} className="text-muted" />
+          <StatePair health={status?.health?.status ?? ''} sync={status?.sync?.status ?? ''} />
         </div>
 
-        <div className="mt-3 flex items-start justify-between gap-4">
-          <StatePair health={status?.health?.status ?? ''} sync={status?.sync?.status ?? ''} />
-          {op && (
-            <p className="max-w-[60%] text-right text-[13px] leading-snug text-muted">
-              <span className={op.phase === 'Failed' ? 'text-degraded' : 'text-progressing'}>
-                {op.phase}
-              </span>
-              {op.message ? ` — ${op.message}` : ''}
-            </p>
-          )}
-        </div>
+        {/* Clamped so one enormous ArgoCD message cannot grow the pinned
+            header past the content; the untruncated text is in Events. */}
+        {op && (
+          <p className="mt-2 line-clamp-3 text-[13px] leading-snug text-muted">
+            <span className={op.phase === 'Failed' ? 'text-degraded' : 'text-progressing'}>
+              {op.phase}
+            </span>
+            {op.message ? ` — ${op.message}` : ''}
+          </p>
+        )}
 
         {status?.health?.message && (
-          <p className="mt-2 rounded-pill bg-surface-degraded px-3 py-2 text-[13px] leading-snug text-text-degraded">
+          <p className="mt-2 line-clamp-3 rounded-pill bg-surface-degraded px-3 py-2 text-[13px] leading-snug text-text-degraded">
             {status.health.message}
           </p>
         )}
