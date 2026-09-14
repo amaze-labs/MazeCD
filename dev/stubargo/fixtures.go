@@ -25,6 +25,7 @@ type App struct {
 	UnhealthyResources  int       // of ResourceCount, how many report non-Healthy
 	RepoURL             string    // spec.source.repoURL
 	TargetRevision      string    // spec.source.targetRevision
+	AutoSync            bool      // spec.syncPolicy.automated presence
 }
 
 // homeApps, ordersApps and utilityApps are real-looking fleet names: a
@@ -75,6 +76,19 @@ var abnormal = map[string]App{
 	"file-share":                          {Health: "Progressing", Sync: "Synced", OperationPhase: "Running"},
 	"image-updater":                         {Health: "Suspended", Sync: "Synced"},
 	"log-aggregation-pipeline-collector": {Health: "Unknown", Sync: "Synced"},
+}
+
+// manual pins the fleet's handful of applications that ArgoCD will NOT
+// reconcile by itself -- spec.syncPolicy.automated absent. Most of the fleet
+// autosyncs; these are the exception. doc-archive, cert-manager and
+// orders-worker are already OutOfSync above, which is exactly what "nobody
+// synced it" looks like. prometheus, postgres-orders and velero are otherwise
+// perfectly Healthy/Synced -- the case that matters most, since a manual app
+// that is currently fine gives no visual hint that a future drift will just
+// sit there until someone acts.
+var manual = map[string]bool{
+	"doc-archive": true, "cert-manager": true, "orders-worker": true,
+	"prometheus": true, "postgres-orders": true, "velero": true,
 }
 
 // demoApps names the one application per instance the stream/watch demo
@@ -146,6 +160,7 @@ func buildApps() []*App {
 				ResourceCount:       resourceCountFor(n),
 				RepoURL:             o.repo,
 				TargetRevision:      o.target,
+				AutoSync:            !manual[n],
 			}
 			if o, ok := abnormal[n]; ok {
 				a.Health, a.Sync, a.OperationPhase, a.HealthMessage = o.Health, o.Sync, o.OperationPhase, o.HealthMessage

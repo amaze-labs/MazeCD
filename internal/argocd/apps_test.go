@@ -11,7 +11,8 @@ import (
 
 const appListJSON = `{"items":[
  {"metadata":{"name":"web","namespace":"argocd"},
-  "spec":{"project":"default","destination":{"server":"https://kubernetes.default.svc","namespace":"web-prod"}},
+  "spec":{"project":"default","destination":{"server":"https://kubernetes.default.svc","namespace":"web-prod"},
+          "syncPolicy":{"automated":{"prune":true,"selfHeal":true}}},
   "status":{"health":{"status":"Degraded","message":"readiness probe failed"},"sync":{"status":"OutOfSync","revision":"abc1234"},
             "operationState":{"phase":"Running","finishedAt":"2026-09-14T08:00:00Z"},
             "resources":[
@@ -78,6 +79,18 @@ func TestAppsAggregatesAndTagsInstance(t *testing.T) {
 	}
 	if api.HealthMessage != "" {
 		t.Errorf("HealthMessage = %q, want empty for healthy app", api.HealthMessage)
+	}
+
+	// web carries spec.syncPolicy.automated; api and nores don't -- absent
+	// is a real "manual", not an unknown.
+	if !web.AutoSync {
+		t.Error("web.AutoSync = false, want true: it has spec.syncPolicy.automated")
+	}
+	if api.AutoSync {
+		t.Error("api.AutoSync = true, want false: it has no syncPolicy at all")
+	}
+	if nores.AutoSync {
+		t.Error("nores.AutoSync = true, want false: it has no syncPolicy at all")
 	}
 
 	// web: degraded app, three resources, two of which report a non-Healthy

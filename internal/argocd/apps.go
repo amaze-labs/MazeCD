@@ -49,6 +49,16 @@ type App struct {
 	// so a plain int is enough -- it is 0 whenever there are no resources to
 	// begin with.
 	UnhealthyResources int `json:"unhealthyResources,omitempty"`
+
+	// AutoSync is whether spec.syncPolicy.automated is present on the
+	// Application -- ArgoCD will reconcile it by itself rather than leaving
+	// it drifted until someone triggers a sync. A plain bool, not the
+	// prune/selfHeal sub-flags: nothing has asked how automatic it is, only
+	// whether it is. Unlike TotalResources there is no third state to
+	// preserve here -- the policy is either in the spec or it isn't, so a
+	// bool (not a pointer) is enough. Named for what it answers rather than
+	// mirroring ArgoCD's spec.syncPolicy.automated nesting.
+	AutoSync bool `json:"autoSync"`
 }
 
 // InstanceError reports one instance that could not be queried.
@@ -77,6 +87,11 @@ type applicationList struct {
 				Server    string `json:"server"`
 				Namespace string `json:"namespace"`
 			} `json:"destination"`
+			// SyncPolicy is only read for the presence of Automated: absent
+			// means manual, present means ArgoCD syncs the app itself.
+			SyncPolicy *struct {
+				Automated *struct{} `json:"automated"`
+			} `json:"syncPolicy"`
 		} `json:"spec"`
 		Status struct {
 			Health struct {
@@ -138,6 +153,7 @@ func (r *Registry) Apps(ctx context.Context) AppsResponse {
 					HealthMessage: it.Status.Health.Message,
 					Sync:          it.Status.Sync.Status,
 					Revision:      it.Status.Sync.Revision,
+					AutoSync:      it.Spec.SyncPolicy != nil && it.Spec.SyncPolicy.Automated != nil,
 				}
 				if it.Status.OperationState != nil {
 					app.OperationPhase = it.Status.OperationState.Phase

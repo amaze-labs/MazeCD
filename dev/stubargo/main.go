@@ -46,6 +46,20 @@ type spec struct {
 	Project     string      `json:"project"`
 	Source      source      `json:"source"`
 	Destination destination `json:"destination"`
+	SyncPolicy  *syncPolicy `json:"syncPolicy,omitempty"`
+}
+
+// syncPolicy mirrors ArgoCD's spec.syncPolicy just enough for the automated
+// case: present means auto-sync, absent means manual. prune/selfHeal are
+// filled with realistic defaults but MazeCD's backend ignores them -- only
+// Automated's presence is read.
+type syncPolicy struct {
+	Automated *automatedSync `json:"automated,omitempty"`
+}
+
+type automatedSync struct {
+	Prune    bool `json:"prune"`
+	SelfHeal bool `json:"selfHeal"`
 }
 
 type health struct {
@@ -93,11 +107,14 @@ func toJSON(a *App) application {
 			Source:      source{RepoURL: a.RepoURL, Path: "apps/" + a.Name, TargetRevision: a.TargetRevision},
 			Destination: destination{Server: "https://kubernetes.default.svc", Namespace: a.Name},
 		},
-		Status: status{
-			Health:    health{Status: a.Health, Message: a.HealthMessage},
-			Sync:      syncStatus{Status: a.Sync, Revision: a.Revision},
-			Resources: resourceStatuses(a),
-		},
+	}
+	if a.AutoSync {
+		app.Spec.SyncPolicy = &syncPolicy{Automated: &automatedSync{Prune: true, SelfHeal: true}}
+	}
+	app.Status = status{
+		Health:    health{Status: a.Health, Message: a.HealthMessage},
+		Sync:      syncStatus{Status: a.Sync, Revision: a.Revision},
+		Resources: resourceStatuses(a),
 	}
 	app.Status.OperationState = &operationState{
 		Phase:      a.OperationPhase,
