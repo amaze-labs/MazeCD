@@ -12,7 +12,7 @@ import (
 const appListJSON = `{"items":[
  {"metadata":{"name":"web","namespace":"argocd"},
   "spec":{"project":"default","destination":{"server":"https://kubernetes.default.svc","namespace":"web-prod"}},
-  "status":{"health":{"status":"Degraded"},"sync":{"status":"OutOfSync","revision":"abc1234"},
+  "status":{"health":{"status":"Degraded","message":"readiness probe failed"},"sync":{"status":"OutOfSync","revision":"abc1234"},
             "operationState":{"phase":"Running"}}},
  {"metadata":{"name":"api","namespace":"argocd"},
   "spec":{"project":"default","destination":{"server":"https://kubernetes.default.svc","namespace":"api-prod"}},
@@ -59,8 +59,14 @@ func TestAppsAggregatesAndTagsInstance(t *testing.T) {
 	if web.OperationPhase != "Running" {
 		t.Errorf("OperationPhase = %q, want Running", web.OperationPhase)
 	}
+	if web.HealthMessage != "readiness probe failed" {
+		t.Errorf("HealthMessage = %q, want \"readiness probe failed\"", web.HealthMessage)
+	}
 	if res.Apps[0].OperationPhase != "" {
 		t.Errorf("OperationPhase = %q, want empty when there is no operation", res.Apps[0].OperationPhase)
+	}
+	if res.Apps[0].HealthMessage != "" {
+		t.Errorf("HealthMessage = %q, want empty for healthy app", res.Apps[0].HealthMessage)
 	}
 }
 

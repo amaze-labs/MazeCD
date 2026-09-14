@@ -15,6 +15,7 @@ type App struct {
 	DestServer     string `json:"destServer"`
 	DestNamespace  string `json:"destNamespace"`
 	Health         string `json:"health"`
+	HealthMessage  string `json:"healthMessage,omitempty"`
 	Sync           string `json:"sync"`
 	Revision       string `json:"revision"`
 	OperationPhase string `json:"operationPhase,omitempty"`
@@ -49,7 +50,8 @@ type applicationList struct {
 		} `json:"spec"`
 		Status struct {
 			Health struct {
-				Status string `json:"status"`
+				Status  string `json:"status"`
+				Message string `json:"message"`
 			} `json:"health"`
 			Sync struct {
 				Status   string `json:"status"`
@@ -97,6 +99,7 @@ func (r *Registry) Apps(ctx context.Context) AppsResponse {
 					DestServer:    it.Spec.Destination.Server,
 					DestNamespace: it.Spec.Destination.Namespace,
 					Health:        it.Status.Health.Status,
+					HealthMessage: it.Status.Health.Message,
 					Sync:          it.Status.Sync.Status,
 					Revision:      it.Status.Sync.Revision,
 				}
