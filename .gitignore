@@ -6,3 +6,6 @@ web/node_modules/
 data/
 dev/shots/
 dev/.bin/
+
+# Agent worktrees and local permission settings, not the project.
+.claude/
