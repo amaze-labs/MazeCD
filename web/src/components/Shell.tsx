@@ -1,15 +1,34 @@
-import { Link, useLocation } from 'react-router-dom'
-import type { ReactNode } from 'react'
+import { Link, useLocation, useNavigationType } from 'react-router-dom'
+import { useEffect, type ReactNode } from 'react'
 import { useOnline } from '../lib/online'
 import { useLiveApps } from '../lib/live'
 import { LayoutList, SlidersHorizontal } from 'lucide-react'
 
 export function Shell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
+  const navigation = useNavigationType()
   const online = useOnline()
   // One place, above every screen: the streams follow the session, not the
   // route, so navigating between the list and a detail never drops them.
   useLiveApps()
+
+  /**
+   * A NEW SCREEN STARTS AT THE TOP. THE ONE YOU CAME BACK TO DOES NOT.
+   *
+   * Scrolling here is the window's — nothing in this tree is an overflow
+   * container — and a plain `BrowserRouter` swaps the route's element under a
+   * window that keeps its offset. Tap the fiftieth row of the list and the
+   * detail, which is shorter, renders somewhere in its middle.
+   *
+   * Only on PUSH. Coming back to ninety-nine rows and losing your place is the
+   * same bug wearing different clothes, and the browser already restores that
+   * offset itself on POP — it can, because the list renders from the query
+   * cache in the same frame rather than after a fetch. `npm run live` checks
+   * both halves, because this is entirely about real scroll in a real browser.
+   */
+  useEffect(() => {
+    if (navigation === 'PUSH') window.scrollTo(0, 0)
+  }, [pathname, navigation])
   const tab = (to: string, label: string, icon: ReactNode) => {
     const on = pathname === to
     return (

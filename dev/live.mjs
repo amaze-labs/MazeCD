@@ -8,6 +8,8 @@
 //   4. one instance's stream dying leaves the other two updating, the list
 //      intact, and the dead one reconnecting on a backoff rather than a loop
 //   5. a reconnect after a long blackout shows the world as it is now
+//   6. opening an application starts at the top of it, and going back keeps
+//      your place in the list
 //
 // Run as `npm run live` from web/. The stub flips one application per
 // instance between Healthy and Progressing every five seconds, which is the
@@ -278,6 +280,40 @@ async function main() {
         homeAttempts > 0 && homeAttempts < 12,
         `${homeAttempts} home stream attempts in ${Math.round((Date.now() - t4) / 1000)}s ` +
           `(backoff is 1s, 2s, 5s, 15s, 30s)`,
+      )
+    },
+  )
+
+  // ---- 6. scroll position across a navigation ----------------------------
+  await step(
+    ['opening an application starts at the top of it', 'and going back keeps your place in the list'],
+    async () => {
+      await page.evaluate(() => window.scrollTo(0, 3000))
+      await sleep(400)
+      const listY = await page.evaluate(() => window.scrollY)
+      // Whatever row is under the thumb at that offset: asking for a row by
+      // name would have Playwright scroll it into view first, and the scroll
+      // this check is about would be gone before the click.
+      const href = await page.evaluate(
+        () => document.elementFromPoint(160, 400)?.closest('a[href^="/apps/"]')?.getAttribute('href'),
+      )
+      await page.locator(`a[href="${href}"]`).click()
+      await page.waitForURL(/\/apps\//)
+      await sleep(500)
+      const detailY = await page.evaluate(() => window.scrollY)
+      check(
+        'opening an application starts at the top of it',
+        listY > 1000 && detailY === 0,
+        `the list stood at ${listY}px; ${href} opened at ${detailY}px`,
+      )
+
+      await page.goBack()
+      await page.waitForURL((u) => u.pathname === '/')
+      const back = await waitUntil(() => page.evaluate(() => window.scrollY), listY, 3_000)
+      check(
+        'and going back keeps your place in the list',
+        Math.abs(back - listY) <= 4,
+        `left the list at ${listY}px, came back to ${back}px`,
       )
     },
   )
