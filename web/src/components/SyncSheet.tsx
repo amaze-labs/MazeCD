@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight } from 'lucide-react'
+import { Check, ChevronRight, CircleCheck } from 'lucide-react'
 import { Sheet } from './Sheet'
-import { Button, Fact } from './ui'
+import { Button, Fact, Mark } from './ui'
 import { refKey } from './Tree'
 import { syncApp, type SyncRequest } from '../api/actions'
 import { useOnline } from '../lib/online'
@@ -141,7 +141,7 @@ export function summarize(o: {
     return `Dry run: ArgoCD compares ${scope} against ${rev} and changes nothing in the cluster.`
   }
   const notes = []
-  if (o.prune) notes.push('Resources Git no longer has are deleted.')
+  if (o.prune) notes.push('Resources removed from Git are deleted.')
   if (!all) notes.push('The application stays OutOfSync until the rest follows.')
   return [`Synchronizes ${scope} to ${rev}.`, ...notes].join(' ')
 }
@@ -151,8 +151,8 @@ export function summarize(o: {
 function Box({ on }: { on: boolean }) {
   return (
     <span
-      className="grid size-[19px] flex-none place-items-center rounded-[6px] text-text ring-1 ring-rule"
-      style={on ? { boxShadow: 'inset 0 0 0 1px var(--edge-active)' } : undefined}
+      className="grid size-[19px] flex-none place-items-center rounded-[6px] text-text"
+      style={{ boxShadow: `inset 0 0 0 1px var(${on ? '--edge-active' : '--edge-strong'})` }}
       aria-hidden="true"
     >
       {on && <Check size={12} strokeWidth={1.9} />}
@@ -343,7 +343,7 @@ export function SyncSheet({
 
         {/* Native disclosure, native keyboard, no state. The band says how
             many are on, so a folded group never hides a decision. */}
-        <details className="group">
+        <details className="group mt-1.5">
           <summary
             className={band('cursor-pointer list-none [&::-webkit-details-marker]:hidden')}
           >
@@ -369,7 +369,7 @@ export function SyncSheet({
           ))}
         </details>
 
-        <details className="group">
+        <details className="group mt-1.5">
           <summary
             className={band('cursor-pointer list-none [&::-webkit-details-marker]:hidden')}
           >
@@ -410,7 +410,7 @@ export function SyncSheet({
           {sorted.map((r) => {
             const key = refKey(r)
             const on = picked.has(key)
-            const out = r.status === 'OutOfSync'
+
             return (
               <button
                 key={key}
@@ -434,11 +434,12 @@ export function SyncSheet({
                     {r.namespace ? ` · ${r.namespace}` : ''}
                   </span>
                 </span>
-                {/* The ordinary reading is grey; only the exception speaks. */}
-                <span
-                  className={`t-mono flex-none text-[10.5px] ${out ? 'text-outofsync' : 'text-dim'}`}
-                >
-                  {out ? 'out of sync' : r.status === 'Synced' ? 'synced' : '?'}
+                {/* The same circled check the resource list behind this sheet
+                    draws, for the same reason: ten rows of the amber *words*
+                    "out of sync" emphasise nothing and drown the checkbox,
+                    which is the decision actually being made on this row. */}
+                <span className="flex w-[14px] flex-none justify-end text-mark">
+                  <Mark state={r.status} icon={CircleCheck} />
                 </span>
               </button>
             )

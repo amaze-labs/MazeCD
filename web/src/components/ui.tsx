@@ -121,7 +121,7 @@ export function AutoMark({ auto, verbose }: { auto: boolean; verbose?: boolean }
  * `?` is not "unknown health". It is "nobody said", and that is a different
  * claim from a status ArgoCD named Unknown.
  */
-function Mark({ state, icon: Icon }: { state: string | undefined; icon: typeof Heart }) {
+export function Mark({ state, icon: Icon }: { state: string | undefined; icon: typeof Heart }) {
   if (!state) {
     return (
       <span className="t-mono w-[11px] text-center text-[12px] leading-none text-dim" title="not reported">

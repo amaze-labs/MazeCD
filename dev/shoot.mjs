@@ -104,6 +104,31 @@ async function shootTheme(theme) {
   await page.getByText('GET /healthz').first().waitFor()
   await shot('06-app-detail-sheet.png')
 
+  // THE SYNC SHEET, on the application it exists for: doc-archive is
+  // OutOfSync *and* manual — nothing will fix it until somebody presses this.
+  // Two shots of one sheet, the way the reference screenshots are: what it
+  // offers when it opens, and the resource list once it is unfolded. The
+  // second is the one that proves the long case is usable on a phone.
+  await page.goto(`${base}/apps/home/doc-archive`)
+  await page.getByRole('button', { name: /^Sync/ }).click()
+  await page.getByRole('dialog', { name: 'Synchronize' }).waitFor()
+  await page.waitForTimeout(150)
+  await shot('16-app-detail-sync.png')
+
+  // Prune on: the propagation policy appears under it, and the pinned summary
+  // grows the sentence that says this one deletes. It is the destructive
+  // configuration of the destructive action, and nothing else photographs it.
+  await page.getByRole('checkbox', { name: /^Prune delete/ }).click()
+  await page.waitForTimeout(150)
+  await shot('16b-app-detail-sync-prune.png')
+
+  await page.getByText('how it applies').click()
+  await page.getByText(/of \d+ selected/).click()
+  await page.getByRole('dialog').getByRole('checkbox').last().scrollIntoViewIfNeeded()
+  await page.waitForTimeout(150)
+  await shot('17-app-detail-sync-resources.png')
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
   // 90 of 99 applications are healthy, so the quiet card is the one the
   // list is mostly made of: capture it, and prove the counter chips filter.
   await page.goto(base)
