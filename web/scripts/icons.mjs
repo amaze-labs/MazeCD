@@ -6,7 +6,7 @@ import sharp from 'sharp'
 
 const pub = path.resolve(fileURLToPath(new URL('../public', import.meta.url)))
 const src = path.join(pub, 'favicon.svg')
-const INK = { r: 0x0e, g: 0x13, b: 0x22, alpha: 1 }
+const INK = { r: 0, g: 0, b: 0, alpha: 1 }
 
 const render = (size) => sharp(src).resize(size, size)
 const write = (img, name) => img.png().toFile(path.join(pub, name))
@@ -25,13 +25,11 @@ for (const [size, name] of [
   await write(render(size).flatten({ background: INK }), name)
 }
 
-// Android crops a maskable icon to roughly the central 80% circle, so the
-// mark is inset to 78% and the ink is allowed to run to the edges.
-await write(
-  sharp({ create: { width: 512, height: 512, channels: 4, background: INK } }).composite([
-    { input: await render(400).png().toBuffer(), top: 56, left: 56 },
-  ]),
-  'icon-512-maskable.png',
-)
+// Android crops a maskable icon to roughly the central 80% circle — a radius
+// of 204.8px. The mark already sits within 171px of the centre, so it survives
+// that crop at full size and needs no inset; all the maskable variant does is
+// let the ink run to the square's edges instead of stopping at the rounded
+// corners.
+await write(render(512).flatten({ background: INK }), 'icon-512-maskable.png')
 
 console.log('icons written to public/')
