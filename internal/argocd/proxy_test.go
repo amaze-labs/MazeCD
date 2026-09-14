@@ -1,7 +1,10 @@
 package argocd
 
 import (
+	"bytes"
+	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +13,18 @@ import (
 	"github.com/amaze-labs/MazeCD/internal/auth"
 	"github.com/amaze-labs/MazeCD/internal/config"
 )
+
+// captureLogs redirects the default slog logger into a buffer for the length
+// of the test, so an assertion about logging is about what was actually
+// written rather than about a stand-in for it.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
 
 // mount wires the proxy exactly as the server does, so the test exercises the
 // real routing pattern.
@@ -79,6 +94,7 @@ func TestProxyUnknownInstance(t *testing.T) {
 }
 
 func TestProxyUnreachableUpstreamReturns502(t *testing.T) {
+	logs := captureLogs(t)
 	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	url := dead.URL
 	dead.Close() // nothing is listening any more
@@ -96,6 +112,46 @@ func TestProxyUnreachableUpstreamReturns502(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "prod") {
 		t.Errorf("error body %q does not name the instance", rec.Body.String())
+	}
+	// A real instance failure is still reported. The cancellation check in
+	// ErrorHandler must silence the client hanging up and nothing else.
+	if !strings.Contains(logs.String(), "proxy failed") || !strings.Contains(logs.String(), "prod") {
+		t.Errorf("log = %q, want a proxy failure naming the instance", logs.String())
+	}
+}
+
+// Every watch stream ends in a cancelled request -- a tab backgrounded, a
+// screen locked, a navigation away -- and each one lands in ErrorHandler.
+// Logging those as failures buries the real ones under three warnings per
+// screen lock, and there is nobody left to write a 502 body to.
+func TestProxyCancelledRequestIsNotAFailure(t *testing.T) {
+	logs := captureLogs(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	reg, err := NewRegistry(&config.Config{Instances: []config.Instance{
+		{Name: "prod", URL: upstream.URL, Token: "t"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // the browser has already gone away
+	req := httptest.NewRequest("GET", "/api/i/prod/stream/applications", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	mount(reg).ServeHTTP(rec, req)
+
+	if logs.Len() != 0 {
+		t.Errorf("log = %q, want nothing: a client hanging up is not an instance failure", logs.String())
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("body = %q, want nothing written to a client that is gone", rec.Body.String())
+	}
+	if rec.Result().StatusCode == http.StatusBadGateway {
+		t.Error("a cancelled request was answered with 502")
 	}
 }
 
