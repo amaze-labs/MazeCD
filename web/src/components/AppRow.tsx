@@ -81,11 +81,6 @@ export function AppRow({ app, color }: { app: App; color: string }) {
   const muted = tinted(bucket) ? 'text-muted-tint' : 'text-muted'
   const resting = bucket === 'Healthy' && app.sync === 'Synced'
   const when = ago(app.operationFinishedAt)
-  // The project earns its place only when it is not already on the row: a
-  // "home" chip beside the word "home" is the duplication this rebuild
-  // exists to remove, and most fleets name at least one project after the
-  // instance it lives on.
-  const project = app.project === app.instance ? '' : app.project
   const unhealthy = app.unhealthyResources ?? 0
 
   return (
@@ -105,33 +100,44 @@ export function AppRow({ app, color }: { app: App; color: string }) {
             : tint(state.color, 'var(--tint-border)'),
       }}
     >
-      {when ? (
-        <time
-          dateTime={app.operationFinishedAt}
-          // What this number *is* is written at the top of its own column,
-          // once, in the list's header row. The title stays for a pointer,
-          // and the aria-label is what a screen reader says in place of "1d".
-          title={`last operation finished ${when.long}`}
-          aria-label={`last operation finished ${when.long}`}
-          className={`col-start-1 row-span-2 text-right leading-none tabular-nums ${
-            resting ? `text-[13px] ${muted}` : 'text-[20px] font-semibold text-text'
-          }`}
-        >
-          {when.short}
-        </time>
-      ) : (
-        <span
-          title="ArgoCD has no operation recorded for this application"
-          className="col-start-1 row-span-2 text-right text-[13px] leading-none text-rule"
-        >
-          –
-        </span>
-      )}
+      {/* The leading column: the mark, and under it the age. Both right-
+          aligned to the same edge, so the column still reads straight down.
 
-      <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5">
+          The mark began at the head of the *name*, which is where the
+          reference puts it — and it cost 26px of every application name on a
+          393px screen, enough to truncate the longest fixture name that used
+          to fit. Here it costs nothing: this column is 52px wide, reserved
+          for an age of at most four characters, and the space above that age
+          was empty. It is also a more literal answer to "an anchor at the
+          start of the row" than an icon a third of the way in. */}
+      <div className="col-start-1 row-span-2 flex flex-col items-end gap-0.5">
         <RowMark state={bucket} resting={resting} />
-        <h2 className="t-name min-w-0 flex-1 truncate text-[15px]">{app.name}</h2>
+        {when ? (
+          <time
+            dateTime={app.operationFinishedAt}
+            // What this number *is* is written at the top of its own column,
+            // once, in the list's header row. The title stays for a pointer,
+            // and the aria-label is what a screen reader says in place of
+            // "1d".
+            title={`last operation finished ${when.long}`}
+            aria-label={`last operation finished ${when.long}`}
+            className={`leading-none tabular-nums ${
+              resting ? `text-[13px] ${muted}` : 'text-[20px] font-semibold text-text'
+            }`}
+          >
+            {when.short}
+          </time>
+        ) : (
+          <span
+            title="ArgoCD has no operation recorded for this application"
+            className="text-[13px] leading-none text-rule"
+          >
+            –
+          </span>
+        )}
       </div>
+
+      <h2 className="t-name col-start-2 row-start-1 truncate text-[15px]">{app.name}</h2>
 
       <div className="col-start-2 row-start-2 mt-0.5 flex min-w-0 items-center gap-1.5">
         {!resting && (
@@ -140,7 +146,15 @@ export function AppRow({ app, color }: { app: App; color: string }) {
           </span>
         )}
         <InstancePill name={app.instance} color={color} />
-        <span className={`min-w-0 flex-1 truncate text-[12px] ${muted}`}>{project}</span>
+        {/* The project used to sit here. Once the instance pill grew its dot,
+            four things were sharing this line and the project was the one
+            that gave way — `pers…` on one row, `perso…` on the next, five
+            characters of a word nobody can finish. A field cut that short is
+            worse than a field that is absent: it takes the space, adds the
+            noise, and tells nobody anything. It is a labelled field on the
+            detail now, which is where someone who cares about it is looking,
+            and that grid is the reason the row no longer has to carry it. */}
+        <span className="min-w-0 flex-1" />
         <Revision sha={app.revision} className={muted} />
       </div>
 

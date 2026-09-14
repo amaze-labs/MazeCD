@@ -23,20 +23,20 @@ function AppRowSkeleton({ i }: { i: number }) {
       className="grid grid-cols-[3.25rem_minmax(0,1fr)_2.25rem] items-center gap-x-2.5 rounded-card border border-rule bg-panel px-2.5 py-1.5"
       aria-hidden="true"
     >
-      <span className="skel col-start-1 row-span-2 ml-auto h-3.5 w-7" />
-      {/* The mark and the name, at the sizes AppRow gives them: the tile is
-          20px and outlined rather than a skeleton bar, because it is the one
-          thing on the row that is already there before the data is. */}
-      <span className="col-start-2 row-start-1 flex items-center gap-2">
+      {/* The mark and the age, in AppRow's leading column. The tile is drawn
+          outlined rather than as a skeleton bar, because it is the one thing
+          on the row that is already there before the data is. */}
+      <span className="col-start-1 row-span-2 flex flex-col items-end gap-0.5">
         <span className="size-5 shrink-0 rounded-tile ring-1 ring-rule" />
-        <span className="skel h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
+        <span className="skel h-3.5 w-7" />
       </span>
+      <span className="skel col-start-2 row-start-1 h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
       {/* The meta line is a state word and an instance pill and a revision,
           not one long bar: a single wide block there read as a second title
           and made the skeleton look like a two-line list it is not. */}
       <span className="col-start-2 row-start-2 mt-0.5 flex items-center gap-1.5">
-        <span className="skel h-6 w-14 rounded-pill" />
-        <span className="skel h-3 w-16" />
+        <span className="skel h-6 w-16 rounded-pill" />
+        <span className="skel h-3 w-14" />
       </span>
       <span className="skel col-start-3 row-span-2 ml-auto h-3.5 w-5" />
     </div>
