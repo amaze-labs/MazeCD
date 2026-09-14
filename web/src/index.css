@@ -194,6 +194,12 @@ body {
   font-variant-numeric: tabular-nums;
   overscroll-behavior-y: contain;
   -webkit-tap-highlight-color: transparent;
+  /* Scroll and swipe, but do not pinch, and do not treat a double tap as a
+     request to magnify. Naming both axes rather than `manipulation` is what
+     rules the pinch out; `none` would have taken scrolling with it. Safari
+     ignores this for pinch and needs the gesture events blocked in JS, which
+     main.tsx does. */
+  touch-action: pan-x pan-y;
 }
 
 svg {

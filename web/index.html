@@ -2,7 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- `maximum-scale=1` is the half that matters: iOS magnifies the page
+         whenever a focused field's text is under 16px, and four of MazeCD's
+         fields are mono at 12.5-13px on purpose. It honours this for that
+         automatic zoom even where it ignores `user-scalable=no` for a pinch,
+         so the fields keep their size and the page keeps still. In the
+         installed PWA both are honoured, which is how this is actually used. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <!-- The browser's own chrome — the address bar on a phone, the status bar
          in the installed PWA — follows the theme too. Two tags, because a
          single colour that suited a dark app left a black strip above a white
