@@ -133,7 +133,13 @@ export function summarize(o: {
   total: number
   revision: string
 }): string {
-  if (o.picked === 0) return 'Nothing is selected, so there is nothing to synchronize.'
+  // An application ArgoCD has never compared reports no managed resources at
+  // all, so there is nothing to select and nothing to deselect -- and it is
+  // exactly the application somebody reaches for Sync on. `syncBody` already
+  // gets this right (no resources named is a whole-application sync); only
+  // this sentence and the button's disabled state ever disagreed.
+  if (o.total > 0 && o.picked === 0)
+    return 'Nothing is selected, so there is nothing to synchronize.'
   const all = o.picked === o.total
   const scope = all ? 'the whole application' : `${o.picked} of ${o.total} resources`
   const rev = o.revision.trim() || 'the target revision'
@@ -512,7 +518,7 @@ export function SyncSheet({
           <Button
             className="flex-[1.5]"
             onClick={() => void submit()}
-            disabled={!online || busy || chosen.length === 0}
+            disabled={!online || busy || (total > 0 && chosen.length === 0)}
           >
             {busy ? 'Sending…' : flags.dryRun ? 'Dry run' : 'Synchronize'}
           </Button>

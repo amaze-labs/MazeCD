@@ -102,4 +102,12 @@ describe('summarize', () => {
   test('nothing selected says so', () => {
     expect(summarize({ ...base, picked: 0 })).toContain('Nothing is selected')
   })
+
+  test('an application with no managed resources is still a whole-application sync', () => {
+    // ArgoCD populates status.resources only after a comparison, so this is an
+    // application it has never compared -- not one with nothing selected.
+    expect(summarize({ ...base, picked: 0, total: 0 })).toBe(
+      'Synchronizes the whole application to main.',
+    )
+  })
 })
