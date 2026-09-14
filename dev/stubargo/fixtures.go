@@ -70,11 +70,11 @@ var abnormal = map[string]App{
 	"platform-ingress-controller-prod": {
 		Health: "Degraded", Sync: "Synced", HealthMessage: "ImagePullBackOff: back-off pulling image",
 	},
-	"doc-archive":                      {Health: "Healthy", Sync: "OutOfSync"},
-	"orders-worker":                        {Health: "Healthy", Sync: "OutOfSync"},
+	"doc-archive":                        {Health: "Healthy", Sync: "OutOfSync"},
+	"orders-worker":                      {Health: "Healthy", Sync: "OutOfSync"},
 	"cert-manager":                       {Health: "Healthy", Sync: "OutOfSync"},
-	"file-share":                          {Health: "Progressing", Sync: "Synced", OperationPhase: "Running"},
-	"image-updater":                         {Health: "Suspended", Sync: "Synced"},
+	"file-share":                         {Health: "Progressing", Sync: "Synced", OperationPhase: "Running"},
+	"image-updater":                      {Health: "Suspended", Sync: "Synced"},
 	"log-aggregation-pipeline-collector": {Health: "Unknown", Sync: "Synced"},
 }
 
@@ -140,7 +140,7 @@ type origin struct {
 
 var origins = map[string]origin{
 	"home":    {"git@github.com:amaze-labs/homelab-gitops-manifests.git", "main"},
-	"orders":    {"https://git.orders.internal/platform/ledger-manifests.git", "v1.24.3"},
+	"orders":  {"https://git.orders.internal/platform/ledger-manifests.git", "v1.24.3"},
 	"utility": {"git@github.com:amaze-labs/cluster-utilities.git", "release-2026.03"},
 }
 
