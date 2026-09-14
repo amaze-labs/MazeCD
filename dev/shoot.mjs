@@ -161,6 +161,14 @@ async function main() {
   await page.getByText('GET /healthz').first().waitFor()
   await shot('04-app-detail-sheet.png')
 
+  // 90 of 99 applications are healthy, so the quiet card is the one the
+  // list is mostly made of: capture it, and prove the counter chips filter.
+  await page.goto(base)
+  await page.getByRole('heading', { name: 'Applications' }).waitFor()
+  await page.getByRole('button', { name: /healthy/ }).click()
+  await page.waitForTimeout(200)
+  await shot('06-apps-list-healthy.png')
+
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Settings' }).waitFor()
   await page.getByText('Connected').first().waitFor()
