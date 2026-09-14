@@ -80,30 +80,31 @@ export function StatusBadge({
 }
 
 /**
- * The instance, as a small outlined pill in the instance's own colour. The
- * colour lives here — six characters wide, in a place where nothing is at
- * stake — instead of on a thick bar down the edge of the row, where a red
- * theme made a healthy application look like a fire.
+ * The instance: a neutral outlined pill with a dot of the instance's colour.
  *
- * This was the most-repeated fill in the product: one on every row, one on
- * every card in Settings, one in every sheet. An operator's own instance
- * colours are arbitrary — they are whatever the configuration file says — so
- * a solid block of one was the least meaningful paint on the screen.
+ * This was the most-repeated fill in the product — one on every row, one on
+ * every card in Settings, one in every sheet — and an operator's instance
+ * colours are arbitrary, whatever the configuration file happens to say, so a
+ * solid block of one was the least meaningful paint on the screen.
  *
- * The word keeps its blend toward the text colour rather than taking the raw
- * instance colour: a configuration file is free to name an instance `#3b3b3b`
- * or a neon yellow, and the pill has to stay readable either way. The edge
- * takes the colour straight, where an unreadable value costs nothing.
+ * Outlining it *in that colour* was worse. `orders-worker` read "Out of sync" in
+ * amber beside a `orders` pill outlined in green, and a green outline next to an
+ * amber one says "this bit is fine" to anyone glancing — except it is not a
+ * state at all, it is which server the application lives on. Two different
+ * kinds of fact wearing the same clothes.
+ *
+ * So the separation is structural rather than chromatic, because the colours
+ * are the user's and cannot be chosen around: **a status chip is an outline in
+ * its own colour; an instance is a neutral outline with a coloured dot.** The
+ * instance keeps its identity, nothing outlined in a status-like hue ever
+ * stands beside a status again, and the shape is the one the instance filters
+ * at the top of the list already use — a reader who has seen one has seen
+ * both.
  */
 export function InstancePill({ name, color }: { name: string; color: string }) {
   return (
-    <span
-      className="inline-flex h-6 shrink-0 items-center rounded-pill px-2 text-[12px] font-medium"
-      style={{
-        boxShadow: `inset 0 0 0 1px ${tint(color, 'var(--tint-outline)')}`,
-        color: `color-mix(in oklab, ${color} 45%, var(--color-text))`,
-      }}
-    >
+    <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-pill px-2 text-[12px] font-medium text-muted ring-1 ring-rule">
+      <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
       {name}
     </span>
   )

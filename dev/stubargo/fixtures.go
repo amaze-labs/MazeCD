@@ -23,6 +23,8 @@ type App struct {
 	OperationFinishedAt time.Time // when the last sync finished; varies per app
 	ResourceCount       int       // status.resources length
 	UnhealthyResources  int       // of ResourceCount, how many report non-Healthy
+	RepoURL             string    // spec.source.repoURL
+	TargetRevision      string    // spec.source.targetRevision
 }
 
 // homeApps, ordersApps and utilityApps are real-looking fleet names: a
@@ -111,9 +113,27 @@ func resourceCountFor(name string) int {
 	return 3 + int(sum[1])%18
 }
 
+// Each instance deploys from its own repository at its own target revision,
+// and the three are deliberately unalike: an SSH remote, an HTTPS one, and a
+// long self-hosted URL, pinned to a branch, a tag and a release branch. The
+// home repository is the longest on purpose -- it is the one the detail
+// screenshot shows, and a REPOSITORY field that never truncates in any
+// screenshot is a truncation nobody has seen.
+type origin struct {
+	repo   string
+	target string
+}
+
+var origins = map[string]origin{
+	"home":    {"git@github.com:amaze-labs/homelab-gitops-manifests.git", "main"},
+	"orders":    {"https://git.orders.internal/platform/ledger-manifests.git", "v1.24.3"},
+	"utility": {"git@github.com:amaze-labs/cluster-utilities.git", "release-2026.03"},
+}
+
 func buildApps() []*App {
 	all := make([]*App, 0, 99)
 	add := func(instance string, names []string, project string) {
+		o := origins[instance]
 		for _, n := range names {
 			a := &App{
 				Name:                n,
@@ -124,6 +144,8 @@ func buildApps() []*App {
 				Revision:            revision(n),
 				OperationFinishedAt: buildTime.Add(-ageFor(n)),
 				ResourceCount:       resourceCountFor(n),
+				RepoURL:             o.repo,
+				TargetRevision:      o.target,
 			}
 			if o, ok := abnormal[n]; ok {
 				a.Health, a.Sync, a.OperationPhase, a.HealthMessage = o.Health, o.Sync, o.OperationPhase, o.HealthMessage
@@ -142,7 +164,11 @@ func buildApps() []*App {
 			all = append(all, a)
 		}
 	}
-	add("home", homeApps, "home")
+	// No instance shares its name with its project. They are different facts
+	// -- which server an application lives on, and which ArgoCD project it
+	// belongs to -- and a fixture where they read alike ("home" / "home")
+	// hides exactly the confusion a screenshot is supposed to expose.
+	add("home", homeApps, "personal")
 	add("orders", ordersApps, "ledger")
 	add("utility", utilityApps, "platform")
 	if len(all) != 99 {

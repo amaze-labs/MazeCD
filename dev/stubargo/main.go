@@ -33,8 +33,18 @@ type destination struct {
 	Namespace string `json:"namespace"`
 }
 
+// source mirrors ArgoCD's spec.source: where the manifests come from. The
+// web UI's detail screen labels all three, and the repository URL is
+// deliberately long enough in the fixtures to exercise its truncation.
+type source struct {
+	RepoURL        string `json:"repoURL"`
+	Path           string `json:"path"`
+	TargetRevision string `json:"targetRevision"`
+}
+
 type spec struct {
 	Project     string      `json:"project"`
+	Source      source      `json:"source"`
 	Destination destination `json:"destination"`
 }
 
@@ -80,6 +90,7 @@ func toJSON(a *App) application {
 		Metadata: metadata{Name: a.Name, Namespace: "argocd"},
 		Spec: spec{
 			Project:     a.Project,
+			Source:      source{RepoURL: a.RepoURL, Path: "apps/" + a.Name, TargetRevision: a.TargetRevision},
 			Destination: destination{Server: "https://kubernetes.default.svc", Namespace: a.Name},
 		},
 		Status: status{
