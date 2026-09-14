@@ -30,7 +30,18 @@ function trackedSpawn(cmd, args, opts) {
   return child
 }
 
+// Browsers opened via `phone()`. A script that throws between opening one and
+// its own `browser.close()` used to leave the browser process running and the
+// whole `node dev/live.mjs` (or shoot.mjs) hanging forever after a plain
+// timeout -- a failure that never even got to print, worse than a red line.
+// Closing them here means it happens on the way out either way, because
+// `guard` calls `cleanup()` on both the success and the error path.
+const browsers = []
+
 export async function cleanup() {
+  for (const browser of browsers.splice(0)) {
+    await browser.close().catch(() => {})
+  }
   for (const child of children.reverse()) {
     if (child.exitCode !== null || child.killed) continue
     child.kill('SIGTERM')
@@ -131,6 +142,7 @@ export function playwright() {
 export async function phone({ colorScheme } = {}) {
   const { chromium, devices } = playwright()
   const browser = await chromium.launch()
+  browsers.push(browser)
   const context = await browser.newContext({
     viewport: { width: 393, height: 852 },
     deviceScaleFactor: 3,

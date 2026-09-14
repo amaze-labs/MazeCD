@@ -272,8 +272,10 @@ export function AppDetailScreen() {
             {(['grouped', 'tree'] as View[]).map((v) => (
               <button
                 key={v}
+                id={`tab-${v}`}
                 role="tab"
                 aria-selected={view === v}
+                aria-controls="tabpanel"
                 onClick={() => setView(v)}
                 className={`t-mono flex h-[46px] items-center gap-1.5 rounded-segment px-[15px] text-[11.5px] ${
                   view === v ? 'text-text' : 'text-dim'
@@ -288,27 +290,33 @@ export function AppDetailScreen() {
         </span>
       </div>
 
-      {tree.isError ? (
-        <div className="mx-4 mt-3">
-          <Callout
-            icon={<ServerOff size={17} strokeWidth={2} />}
-            title="Could not load the resource tree"
-            action={
-              <Button className="!h-10" onClick={() => void tree.refetch()}>
-                Try again
-              </Button>
-            }
-          >
-            <span className="t-mono block text-[11.5px]">{String(tree.error)}</span>
-          </Callout>
-        </div>
-      ) : tree.isLoading && !tree.data ? (
-        <TreeSkeleton />
-      ) : view === 'grouped' ? (
-        <Groups nodes={shown} syncOf={syncOf} onSelect={setSelected} />
-      ) : (
-        <Tree nodes={shown} onSelect={setSelected} />
-      )}
+      {/* A tablist with nothing it points to is a dead end for a screen
+          reader: nothing says which region the two tabs above switch, and
+          nothing marks it as a panel at all. One panel, not two, because
+          exactly one of the views below is ever mounted at a time. */}
+      <div id="tabpanel" role="tabpanel" aria-labelledby={`tab-${view}`} tabIndex={-1}>
+        {tree.isError ? (
+          <div className="mx-4 mt-3">
+            <Callout
+              icon={<ServerOff size={17} strokeWidth={2} />}
+              title="Could not load the resource tree"
+              action={
+                <Button className="!h-10" onClick={() => void tree.refetch()}>
+                  Try again
+                </Button>
+              }
+            >
+              <span className="t-mono block text-[11.5px]">{String(tree.error)}</span>
+            </Callout>
+          </div>
+        ) : tree.isLoading && !tree.data ? (
+          <TreeSkeleton />
+        ) : view === 'grouped' ? (
+          <Groups nodes={shown} syncOf={syncOf} onSelect={setSelected} />
+        ) : (
+          <Tree nodes={shown} onSelect={setSelected} />
+        )}
+      </div>
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={name}>
         <div className="-mx-4">
