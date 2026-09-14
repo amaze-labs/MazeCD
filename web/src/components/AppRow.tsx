@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Component, TriangleAlert } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 import type { App } from '../api/types'
 import { InstancePill, Revision, tint } from './ui'
 import { bucketOf, surfaceOf, tinted } from '../lib/fleet'
@@ -12,29 +12,39 @@ import { ago } from '../lib/ago'
  * column instead of reading every row whole.
  *
  *   ┌──────┬────────────────────────────────┬──────┐
- *   │  4m  │ photo-library-ml                      │  14  │
+ *   │  4m  │ photo-library-ml                      │   14 │
  *   │      │ ⚠ Degraded  home  ledger  0af…│  ⚠ 2 │
+ *   ├──────┼────────────────────────────────┼──────┤
+ *   │  25d │ dns-filter                   │   17 │
+ *   │      │ home                    d7d4947│      │
  *   └──────┴────────────────────────────────┴──────┘
  *     age            name / meta             resources
  *
- * **The age is the largest thing on the row.** On a fleet list a name is an
- * address, not news: you already know which application you came for, or you
- * typed it into the search box, and ninety-nine names are a directory. The
- * one fact that separates "this is fine" from "go and look" — and that
- * nothing else on the row reports — is how long ago ArgoCD last acted on it.
- * A degraded border beside `4m` is a sync that just failed; the same border
- * beside `26d` is something that has been quietly broken for a month. Those
- * are different emergencies and neither the badge, the border nor the health
- * message can tell them apart. That is the number worth the type.
+ * **The age is the largest thing on the row — on the rows where it means
+ * something.** On a broken application it is the fact that separates "this
+ * is fine" from "go and look", and the one nothing else on the row reports:
+ * a degraded border beside `4m` is a sync that just failed, the same border
+ * beside `26d` is something that has been quietly broken for a month, and
+ * neither the badge, the border nor the health message can tell those two
+ * emergencies apart. There it is 20px and takes the full text colour.
  *
- * Large is not the same as loud. The age is drawn in muted grey on every row,
- * resting or not, so ninety-one healthy applications read as a calm column of
- * times rather than as ninety-one alarms; the colour on a row belongs to the
- * border and to the state word, which are the things that actually mean
- * something is wrong. And the age is deliberately not tinted by state: this
- * is when the last *operation* finished, not how long the application has
- * been degraded, and colouring it red would claim a duration ArgoCD never
- * reported.
+ * On a resting application the same number qualifies nothing. There is no
+ * threshold at which `25d` on a Healthy, Synced application is bad, and
+ * ninety-one inert figures in the strongest slot on the row would be the
+ * ninety-one green badges this list already deleted, wearing different
+ * clothes. So it drops to 13px and to muted, and the name — the thing you
+ * actually came for when nothing is wrong — is the largest thing left.
+ *
+ * That is `.scarto.misura`, whose comment settles it: the same measurement is
+ * 12px inside a pill and 17px standing alone, and what decides is whether it
+ * is "il numero che si cerca". The column survives the change because the
+ * track is fixed and the figures are right-aligned: big or small, every age
+ * ends at the same x, and the eye still runs straight down it.
+ *
+ * The age is never tinted by state, at either size. This is when the last
+ * *operation* finished, not how long the application has been degraded, and
+ * colouring it red would claim a duration ArgoCD never reported. Weight and
+ * size say "read this one"; colour would say something untrue.
  *
  * Both numeric columns are fixed-width and `tabular-nums`, so `4m` and `26d`
  * occupy the same space and the column does not dance from one row to the
@@ -89,14 +99,16 @@ export function AppRow({ app, color }: { app: App; color: string }) {
         <time
           dateTime={app.operationFinishedAt}
           title={`last operation finished ${when.long}`}
-          className={`col-start-1 row-span-2 text-right text-[20px] leading-none font-semibold tabular-nums ${muted}`}
+          className={`col-start-1 row-span-2 text-right leading-none tabular-nums ${
+            resting ? `text-[13px] ${muted}` : 'text-[20px] font-semibold text-text'
+          }`}
         >
           {when.short}
         </time>
       ) : (
         <span
           title="ArgoCD has no operation recorded for this application"
-          className="col-start-1 row-span-2 text-right text-[20px] leading-none text-rule"
+          className="col-start-1 row-span-2 text-right text-[13px] leading-none text-rule"
         >
           –
         </span>
@@ -119,17 +131,19 @@ export function AppRow({ app, color }: { app: App; color: string }) {
         <Revision sha={app.revision} className={muted} />
       </div>
 
-      {/* The count is a fixed-width field, `.scarto`'s trick: shrink-wrapped,
-          `4` pushed its mark 8px further right than `19` did and the marks
-          drew a ragged edge down the column; stretched across the track
-          instead, the mark and its number drifted apart far enough to stop
-          reading as one thing. A minimum width on the digits alone holds the
-          column straight and keeps the pair together. */}
-      <div className="col-start-3 row-span-2 tabular-nums">
+      {/* The total carries no mark of its own. A glyph repeated on all
+          ninety-nine rows says nothing the column's position does not
+          already say, and at 11px the one that meant "a resource" read as a
+          smudge rather than as a word. Dropping it leaves exactly one mark
+          in this column — the triangle on the rows that have something
+          wrong — which is what makes that one read as a signal instead of
+          as furniture. Both figures are right-aligned to the same edge, so
+          the digits line up whether or not the second line is there. */}
+      <div className="col-start-3 row-span-2 text-right tabular-nums">
         {app.totalResources === undefined ? (
           <span
             title="this instance reported no resource list for this application"
-            className="block text-right text-[13px] text-rule"
+            className="block text-[13px] text-rule"
           >
             –
           </span>
@@ -137,10 +151,9 @@ export function AppRow({ app, color }: { app: App; color: string }) {
           <>
             <span
               title={`${app.totalResources} resources`}
-              className={`flex items-center justify-end gap-1 text-[13px] leading-tight ${muted}`}
+              className={`block text-[13px] leading-tight ${muted}`}
             >
-              <Component size={11} strokeWidth={2.2} aria-hidden="true" />
-              <span className="min-w-[1.3rem] text-right">{app.totalResources}</span>
+              {app.totalResources}
             </span>
             {unhealthy > 0 && (
               <span
@@ -148,7 +161,7 @@ export function AppRow({ app, color }: { app: App; color: string }) {
                 className="flex items-center justify-end gap-1 text-[11px] leading-tight font-semibold text-degraded"
               >
                 <TriangleAlert size={11} strokeWidth={2.4} aria-hidden="true" />
-                <span className="min-w-[1.3rem] text-right">{unhealthy}</span>
+                {unhealthy}
               </span>
             )}
           </>
