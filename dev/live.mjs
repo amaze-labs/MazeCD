@@ -75,8 +75,11 @@ async function main() {
     }, state)
 
   await signIn(page)
-  const row = (name) =>
-    page.locator('a').filter({ has: page.getByRole('heading', { name, exact: true }) })
+  // By href, not by a heading: the mockup-B port (2b0b4c9) set an application's
+  // name in a span rather than an <h2>, and this locator had been silently
+  // timing out ever since. The row's own link target is the one thing about it
+  // that a visual pass cannot change.
+  const row = (name) => page.locator(`a[href$="/${name}"]`)
   const grafana = row('grafana')
   await grafana.waitFor()
   await sleep(1500) // let the initial /api/apps and the three streams settle
