@@ -4,6 +4,11 @@ import { Check, ChevronRight, CircleCheck } from 'lucide-react'
 import { Sheet } from './Sheet'
 import { Button, Fact, Mark } from './ui'
 import { refKey } from './Tree'
+// The same guardrail the resource actions use, and deliberately not a second
+// one: its unknown-state handling is the part that matters, and there must be
+// exactly one place where "is this production?" is answered.
+import { confirmReason } from './ResourceSheet'
+import { useInstances } from '../api/queries'
 import { syncApp, type SyncRequest } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { toast } from '../lib/toast'
@@ -238,6 +243,7 @@ export function SyncSheet({
    * operation that finished at a time the old one did not.
    */
   const [waiting, setWaiting] = useState<{ was: string | undefined } | null>(null)
+  const [confirming, setConfirming] = useState(false)
   const op = detail.status?.operationState
   const verdict = waiting && op?.finishedAt && op.finishedAt !== waiting.was ? op : null
 
@@ -252,9 +258,37 @@ export function SyncSheet({
   })
   const optionsOn = OPTIONS.filter((o) => flags[o.key]).length
 
+  /**
+   * THE CONFIRMATION, AND WHY A SHEET THIS LONG STILL NEEDS ONE.
+   *
+   * The length of this sheet was supposed to be its confirmation. It is not:
+   * the summary and Synchronize are pinned to the bottom precisely so that
+   * nobody has to traverse the length, so prune + force + replace across a
+   * whole application is one tap — while restarting a single Pod on the same
+   * instance asks first. That asymmetry was the wrong way round.
+   *
+   * `confirmReason` is the resource sheet's, unchanged, and so is the property
+   * that matters: it skips the question only when the instance list has
+   * arrived, names this instance, and says it is not production. Loading,
+   * failed, absent — all confirm, and the sentence says which of the two
+   * reasons it is asking for rather than claiming a flag nobody has read.
+   *
+   * **A dry run is exempt.** It changes nothing by construction — ArgoCD runs
+   * the operation and applies none of it — so there is nothing to be sure
+   * about, and a guard that fires on the safe rehearsal teaches people to tap
+   * through the one that matters. Ticking dry run while the confirmation is up
+   * takes it down again, which is why `needsConfirm` is re-read rather than
+   * frozen when the button was pressed.
+   */
+  const instances = useInstances()
+  const reason = confirmReason(instances.data, instance)
+  const needsConfirm = reason !== null && !flags.dryRun
+  const confirm = confirming && needsConfirm
+
   async function submit() {
     setBusy(true)
     setWaiting(null)
+    setConfirming(false)
     try {
       await syncApp(instance, name, syncBody(flags, revision, chosen, total))
       if (flags.dryRun) {
@@ -487,10 +521,23 @@ export function SyncSheet({
           brighter one the design reserves for a control that acts. */}
       <div className="sticky bottom-0 -mx-4 border-t border-rule bg-panel px-4 pt-3 pb-1">
         <p
-          className={`mb-3 text-[12px] leading-[1.35] ${!online ? 'text-outofsync' : 'text-muted'}`}
+          className={`mb-3 text-[12px] leading-[1.35] ${
+            !online ? 'text-outofsync' : confirm ? 'text-[13px] text-text' : 'text-muted'
+          }`}
         >
           {!online ? (
             'Offline. Nothing can be sent until the phone is back on a network.'
+          ) : confirm ? (
+            /* It says what is about to happen, not just "are you sure": the
+               summary is the sentence that already changes with every toggle,
+               so prune being on is named here rather than left behind a
+               scroll. Full ink rather than a colour — in this design the
+               exception is heavier, never brighter. */
+            `${summary} ${
+              reason === 'production'
+                ? `${instance} is marked production.`
+                : `MazeCD cannot tell yet whether ${instance} is production, so it is asking.`
+            } There is no undo.`
           ) : verdict ? (
             /* ArgoCD's own words for what its dry run did. The phase is the
                one thing worth a colour here, and only when it is bad: this
@@ -512,15 +559,25 @@ export function SyncSheet({
           )}
         </p>
         <div className="flex gap-2.5">
-          <Button tone="faint" className="flex-1" onClick={onClose}>
+          {/* Cancel steps back out of the confirmation rather than out of the
+              sheet: a dozen deliberate choices are not what a second thought
+              about production should cost. */}
+          <Button
+            tone="faint"
+            className="flex-1"
+            onClick={() => (confirm ? setConfirming(false) : onClose())}
+          >
             Cancel
           </Button>
           <Button
             className="flex-[1.5]"
-            onClick={() => void submit()}
+            onClick={() => (needsConfirm && !confirming ? setConfirming(true) : void submit())}
             disabled={!online || busy || (total > 0 && chosen.length === 0)}
           >
-            {busy ? 'Sending…' : flags.dryRun ? 'Dry run' : 'Synchronize'}
+            {/* The label changes with the question. A confirmation whose
+                button reads exactly what the button before it read is one a
+                second habitual tap walks straight through. */}
+            {busy ? 'Sending…' : confirm ? 'Yes, synchronize' : flags.dryRun ? 'Dry run' : 'Synchronize'}
           </Button>
         </div>
       </div>

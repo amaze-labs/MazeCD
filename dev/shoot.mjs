@@ -164,12 +164,31 @@ async function shootTheme(theme) {
   await shot('17-app-detail-sync-resources.png')
   await page.getByRole('button', { name: 'Cancel' }).click()
 
-  // THE DIFF, on the same drifted application, reached the way the screen
+  // THE SYNC GUARDRAIL, on the instance that has one. `orders` is marked
+  // production in dev/config.yaml, so Synchronize asks before it sends -- and
+  // what it asks is the summary sentence, prune included, rather than "are you
+  // sure". Prune is turned on first because that is the sentence worth
+  // photographing: it names the deletion.
+  await page.goto(`${base}/apps/orders/orders-worker`)
+  await page.getByRole('tab', { name: 'Grouped' }).waitFor()
+  await page.getByRole('button', { name: /^Sync/ }).click()
+  await page.getByRole('dialog', { name: 'Synchronize' }).waitFor()
+  await page.getByRole('checkbox', { name: /^Prune delete/ }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Synchronize', exact: true }).click()
+  await page.getByRole('button', { name: 'Yes, synchronize' }).waitFor()
+  await page.getByText(/marked production/).waitFor()
+  await page.waitForTimeout(150)
+  await shot('17b-app-detail-sync-production.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
+
+  // THE DIFF, back on the drifted application, reached the way the screen
   // offers it: by pressing the word OutOfSync. Two shots, because the two
   // halves of this sheet are answering different questions -- the changed
   // fields of a resource that exists on both sides, and the two resources
   // that exist on only one, which is the case a field list cannot show and
   // the band has to say in words.
+  await page.goto(`${base}/apps/home/doc-archive`)
+  await page.getByRole('tab', { name: 'Grouped' }).waitFor()
   await page.getByRole('button', { name: 'See what differs from Git' }).click()
   await page.getByRole('dialog', { name: 'What differs' }).waitFor()
   await page.getByText('spec.replicas').waitFor()
