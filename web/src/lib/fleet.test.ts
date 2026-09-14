@@ -15,6 +15,7 @@ const app = (health: Health, sync: SyncStatus): App => ({
   health,
   sync,
   revision: 'a8f3acc1234567',
+  autoSync: true,
 })
 
 describe('bucketOf', () => {

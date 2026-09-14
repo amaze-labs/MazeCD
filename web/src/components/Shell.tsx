@@ -16,20 +16,22 @@ export function Shell({ children }: { children: ReactNode }) {
       <Link
         to={to}
         aria-current={on ? 'page' : undefined}
-        // Where you are, in MazeCD's own colour. One of the four places the
-        // accent appears, and the only one that is on screen all the time.
+        // Ink on black, not the accent. This bar is on screen for the whole
+        // of both screens the design governs, and that palette spends colour
+        // only on status -- a magenta strip above ninety-nine status rows is
+        // the loudest non-data thing in the product.
         className={`relative flex flex-1 flex-col items-center gap-1 pt-2.5 pb-1 ${
-          on ? 'text-accent' : 'text-muted'
+          on ? 'text-text' : 'text-dim'
         }`}
       >
         {on && (
           <span
-            className="absolute top-0 h-0.5 w-6 rounded-full bg-accent"
+            className="absolute top-0 h-0.5 w-6 bg-text"
             aria-hidden="true"
           />
         )}
         {icon}
-        <span className="text-[11px] leading-[14px]">{label}</span>
+        <span className="t-mono text-[10.5px] leading-[14px]">{label}</span>
       </Link>
     )
   }
@@ -40,13 +42,13 @@ export function Shell({ children }: { children: ReactNode }) {
           // A rule under it rather than a band of amber behind it: this
           // strip spans the whole width and sits above every screen, so it
           // was the single largest field of colour in the product.
-          <p className="border-b border-outofsync/60 px-4 py-2 text-center text-[13px] leading-snug text-outofsync">
+          <p className="border-b border-outofsync/60 px-4 py-2 text-center text-[12.5px] leading-snug text-outofsync">
             Offline. Nothing here is newer than the last successful refresh.
           </p>
         )}
         {children}
       </main>
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-panel">
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-ink">
         {tab('/', 'Applications', <LayoutList size={21} aria-hidden="true" />)}
         {tab('/settings', 'Settings', <SlidersHorizontal size={21} aria-hidden="true" />)}
       </nav>

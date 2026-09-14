@@ -1,23 +1,32 @@
-import { useEffect, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, RefreshCw, ServerOff } from 'lucide-react'
-import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
-import { Tabs } from '../components/Tabs'
-import { Tree } from '../components/Tree'
-import { Button, Callout, Field, InstancePill, Revision, StatusBadge } from '../components/ui'
+import {
+  ChevronLeft,
+  CornerDownRight,
+  EllipsisVertical,
+  ListFilter,
+  ListTree,
+  RefreshCw,
+  ServerOff,
+} from 'lucide-react'
+import { useAppDetail, useResourceTree } from '../api/queries'
+import { Groups, refKey, Tree } from '../components/Tree'
+import { AutoMark, Button, Callout, Fact, Rail, SyncWord } from '../components/ui'
 import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
-import { Tooltip } from '../components/Tooltip'
+import { Sheet } from '../components/Sheet'
 import { ResourceSheet } from '../components/ResourceSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
+import { healthLoud } from '../lib/fleet'
+import { stateStyle } from '../lib/status'
 import { toast } from '../lib/toast'
 import { ago } from '../lib/ago'
 import { EventsTab } from './tabs/EventsTab'
-import type { ResourceNode } from '../api/types'
+import type { ResourceNode, SyncStatus } from '../api/types'
 
-const TABS = ['Tree', 'Events'] as const
+type View = 'grouped' | 'tree'
 
 export function AppDetailScreen() {
   const { instance = '', name = '' } = useParams()
@@ -28,67 +37,61 @@ export function AppDetailScreen() {
   // them on an endpoint of their own.
   useLiveTree(instance, name)
   const online = useOnline()
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Tree')
+  const [view, setView] = useState<View>('grouped')
+  const [onlyLoud, setOnlyLoud] = useState(false)
   const [selected, setSelected] = useState<ResourceNode | null>(null)
+  const [menu, setMenu] = useState(false)
+  const [events, setEvents] = useState(false)
+  const [busy, setBusy] = useState(false)
 
+  const spec = detail.data?.spec
   const status = detail.data?.status
   const op = status?.operationState
+  const health = status?.health?.status ?? ''
+  const when = ago(op?.finishedAt)
+  const auto = spec?.syncPolicy?.automated != null
 
   const qc = useQueryClient()
-  const instances = useInstances()
-  const meta = (instances.data ?? []).find((i) => i.name === instance)
-  const [busy, setBusy] = useState(false)
-  // A configured instance always has a colour; this is the fallback for the
-  // moment before /api/instances lands, and it follows the theme rather than
-  // hard-coding the dark theme's grey onto a white card.
-  const color = meta?.color ?? 'var(--color-muted)'
-  // The row's leading number, in the one place on this screen where it
-  // already has a sentence to sit in. The header does not repeat the row's
-  // grid: the facts it adds -- both states spelled out, the operation's own
-  // message -- are prose, and the resource count is the line above the tree.
-  const when = ago(op?.finishedAt)
-
-  const invalidate = () =>
-    Promise.all([
-      qc.invalidateQueries({ queryKey: ['app', instance, name] }),
-      qc.invalidateQueries({ queryKey: ['tree', instance, name] }),
-      qc.invalidateQueries({ queryKey: ['apps'] }),
-    ])
-
-  // Hard refresh used to hang off `contextmenu` alone: no tooltip exists on a
-  // phone, and long-press-to-contextmenu is unreliable on iOS Safari for
-  // buttons, so the feature had no entry point on the device MazeCD targets.
-  // A real 600ms press timer gives it one; contextmenu stays for the desktop.
-  const hardPress = useRef(false)
-  const pressTimer = useRef<number | undefined>(undefined)
-  const pressAt = useRef({ x: 0, y: 0 })
-  const cancelPress = () => window.clearTimeout(pressTimer.current)
-  useEffect(() => cancelPress, [])
-  // Idempotent per press: a long press on iOS can fire the timer and a
-  // contextmenu, and only one hard refresh should come of it.
-  const hardRefresh = () => {
-    cancelPress()
-    if (hardPress.current) return
-    hardPress.current = true
-    void act(true)
-  }
 
   /**
-   * The one action, and the first time it has ever said anything.
+   * The sync half of a resource's two marks.
    *
-   * A refresh against a healthy instance comes back in under 200ms: the icon
-   * turned once and the screen looked exactly as it had, so a tap that worked
-   * and a tap that missed the button were the same event. The receipt says
-   * which of the two it was, and names the hard variant when that is what ran
-   * -- re-rendering the manifests is a different, slower thing than asking
-   * ArgoCD to re-read, and an operator who long-pressed by accident should be
-   * told so rather than left to wonder why it took four seconds.
+   * ArgoCD reports sync per resource only on the application's own *managed*
+   * resources — `status.resources[]` — while the resource tree returns the
+   * whole hierarchy, children included. A Pod under a ReplicaSet has no sync
+   * status of its own and never will, so the lookup returns undefined and the
+   * row draws a `?`: "nobody said", which is a different claim from a status
+   * ArgoCD named Unknown.
+   */
+  const syncByKey = useMemo(() => {
+    const m = new Map<string, SyncStatus>()
+    for (const r of status?.resources ?? []) if (r.status) m.set(refKey(r), r.status)
+    return m
+  }, [status?.resources])
+  const syncOf = (n: ResourceNode) => syncByKey.get(refKey(n))
+
+  const nodes = tree.data?.nodes ?? []
+  const degraded = nodes.filter((n) => n.health?.status && healthLoud(n.health.status)).length
+  const shown = onlyLoud
+    ? nodes.filter((n) => (n.health?.status && healthLoud(n.health.status)) || syncOf(n) === 'OutOfSync')
+    : nodes
+
+  /**
+   * The one action, and the one receipt. A refresh against a healthy instance
+   * comes back in under 200ms: the icon turned once and the screen looked
+   * exactly as it had, so a tap that worked and a tap that missed the button
+   * were the same event. The receipt says which of the two it was, and names
+   * the hard variant when that is what ran.
    */
   async function act(hard: boolean) {
     setBusy(true)
     try {
       await refreshApp(instance, name, hard)
-      await invalidate()
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['app', instance, name] }),
+        qc.invalidateQueries({ queryKey: ['tree', instance, name] }),
+        qc.invalidateQueries({ queryKey: ['apps'] }),
+      ])
       toast(
         'ok',
         hard ? 'Hard refresh requested' : 'Refresh requested',
@@ -105,216 +108,229 @@ export function AppDetailScreen() {
 
   return (
     <div>
-      <header className="pt-safe sticky top-0 z-10 border-b border-rule bg-ink px-4 pb-3">
-        <Link
-          to="/"
-          className="-ml-2 flex h-10 w-fit items-center gap-0.5 pr-3 pl-1.5 text-[14px] text-muted"
-        >
-          <ChevronLeft size={18} aria-hidden="true" />
+      <div className="pt-safe flex items-center justify-between pr-2 pl-2.5">
+        <Link to="/" className="t-mono flex h-12 items-center gap-2 px-1.5 text-[12.5px]">
+          <ChevronLeft size={12} strokeWidth={1.4} aria-hidden="true" />
           Applications
         </Link>
+        {/* Everything this screen can do that is not Refresh. The hard
+            refresh used to live on a 600ms press with a tooltip explaining
+            it; a press timer is not an affordance, and the events were a tab
+            competing with the resource list for the same strip. Both are
+            entries in one menu now, which is what the ⋮ is for. */}
+        <button
+          onClick={() => setMenu(true)}
+          aria-label="More"
+          className="grid size-11 place-items-center text-muted"
+        >
+          <EllipsisVertical size={16} aria-hidden="true" />
+        </button>
+      </div>
 
-        {/* A first load draws the header it is about to have -- the title,
-            both badges, the instance line, the button -- rather than drawing
-            "Unknown / Unknown" and correcting itself a moment later, which
-            is a lie about an application's health and the one lie this
-            interface must never tell. */}
-        {detail.isError ? (
+      {detail.isError ? (
+        <div className="mx-4">
           <Callout
-            icon={<ServerOff size={17} strokeWidth={2.2} />}
+            icon={<ServerOff size={17} strokeWidth={2} />}
             title="Could not load this application"
             action={
-              <Button className="!h-10 !text-[14px]" onClick={() => void detail.refetch()}>
+              <Button className="!h-10" onClick={() => void detail.refetch()}>
                 Try again
               </Button>
             }
           >
-            <span className="t-mono block text-[12px]">{String(detail.error)}</span>
+            <span className="t-mono block text-[11.5px]">{String(detail.error)}</span>
           </Callout>
-        ) : detail.isLoading && !detail.data ? (
-          <AppDetailSkeleton />
-        ) : (
-          <>
-        <h1 className="t-name text-[20px]">{name}</h1>
-
-        {/* Both states, always, as badges. The list shows one because it
-            shows the bucket; here there is room for the whole truth. */}
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <StatusBadge state={status?.health?.status ?? 'Unknown'} />
-          <StatusBadge state={status?.sync?.status ?? 'Unknown'} />
         </div>
+      ) : detail.isLoading && !detail.data ? (
+        <AppDetailSkeleton />
+      ) : (
+        <>
+          {/* THE RAIL APPEARS EXACTLY ONCE ON THIS SCREEN, beside the name,
+              where all three of its states are real. A resource further down
+              has health and sync but no auto-sync of its own, so a rail there
+              would be half a mark pretending to be a whole one. */}
+          <div className="flex gap-[13px] pt-1.5 pr-4 pb-4 pl-[13px]">
+            <Rail health={health} auto={auto} />
+            <div className="min-w-0 flex-1">
+              <div className="t-mono mb-[3px] text-[11px] text-dim">
+                <span className="text-muted">{instance}</span>
+                <i className="sep" aria-hidden="true" />
+                {spec?.project}
+              </div>
+              <h1 className="mb-[7px] text-[26px] leading-[1.05] font-semibold tracking-[-0.025em]">
+                {name}
+              </h1>
+              <div className="t-mono flex flex-wrap items-center gap-[9px] text-[12px]">
+                <span
+                  className="font-sans text-[14px] font-[560]"
+                  style={{ color: healthLoud(health) ? stateStyle(health).color : undefined }}
+                >
+                  {stateStyle(health).label}
+                </span>
+                <i className="sep !mx-px" aria-hidden="true" />
+                <SyncWord sync={status?.sync?.status ?? ''} />
+                <i className="sep !mx-px" aria-hidden="true" />
+                {/* On the detail there is room to say it in words, so the
+                    bolt is not asked to carry the whole fact alone. */}
+                <AutoMark auto={auto} verbose />
+              </div>
+              {status?.health?.message && healthLoud(health) && (
+                <p
+                  className="mt-2 flex gap-[7px] text-[11px] leading-[1.35]"
+                  style={{ color: stateStyle(health).color }}
+                >
+                  <CornerDownRight
+                    size={11}
+                    strokeWidth={1.2}
+                    className="mt-0.5 flex-none"
+                    aria-hidden="true"
+                  />
+                  {status.health.message}
+                </p>
+              )}
+            </div>
+          </div>
 
-        {/* The project used to sit here as a bare word with nothing saying
-            what it was — the exact complaint this pass is answering. It is
-            now a labelled field in the sheet below, so this line carries only
-            what the sheet does not: where the application is read from, and
-            what revision is actually deployed. */}
-        <div className="mt-1.5 flex items-center gap-2">
-          <InstancePill name={instance} color={color} />
-          <span className="min-w-0 flex-1" />
-          <Revision sha={status?.sync?.revision} className="text-muted" />
-        </div>
-
-        {/* Clamped so one enormous ArgoCD message cannot grow the pinned
-            header past the content; the untruncated text is in Events. */}
-        {op && (
-          <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-muted">
-            {/* ArgoCD leaves the phase empty on an operation it has finished
-                and moved on from, and the age alone was a sentence with no
-                subject: a line reading "1 day ago" says nothing about what
-                happened a day ago. The field is named for what it is —
-                the last operation, not the last successful deploy. */}
-            {op.phase ? (
-              <span className={op.phase === 'Failed' ? 'text-degraded' : 'text-progressing'}>
-                {op.phase}
-              </span>
-            ) : (
-              'Last operation'
+          {/* The key/value table: hairline rules, no container, no radius, no
+              fill. A tinted rounded panel is exactly what got an earlier
+              attempt rejected. Fields with no value are not drawn at all — a
+              column of em-dashes is not a specification. */}
+          <dl className="m-0 border-y border-rule">
+            <Fact label="namespace" value={spec?.destination.namespace} />
+            <Fact label="repository" value={spec?.source?.repoURL} />
+            <Fact label="target rev" value={spec?.source?.targetRevision} />
+            <Fact label="cluster" value={spec?.destination.server} />
+            <Fact label="revision" value={status?.sync?.revision?.slice(0, 7)} />
+            {op && (
+              <Fact label="finished">
+                {op.phase && (
+                  <span
+                    className={
+                      op.phase === 'Failed'
+                        ? 'text-degraded'
+                        : op.phase === 'Succeeded'
+                          ? 'text-healthy'
+                          : 'text-progressing'
+                    }
+                  >
+                    {op.phase.toLowerCase()}{' '}
+                  </span>
+                )}
+                {when?.long ?? 'not recorded'}
+              </Fact>
             )}
-            {when ? ` ${when.long}` : ''}
-            {op.message ? ` — ${op.message}` : ''}
-          </p>
-        )}
+            <Fact label="message" value={op?.message} prose />
+          </dl>
 
-        {status?.health?.message && (
-          <p className="mt-2 line-clamp-3 rounded-card px-3 py-2 text-[13px] leading-snug text-degraded ring-1 ring-degraded/45">
-            {status.health.message}
-          </p>
-        )}
-
-        {/* MazeCD's one button. Everything it can ask ArgoCD to do, it asks
-            here, and ArgoCD counts it as a read. The ⓘ beside it carries what
-            used to be in the button's `title`: the long press. A `title` is
-            invisible on a phone, so on the device this app is for the hard
-            refresh had no way of ever being discovered. */}
-        <div className="mt-2.5 flex items-center gap-2">
-        <Button
-          className="min-w-0 flex-1"
-          onClick={() => {
-            // The press already ran the hard refresh; the click that
-            // follows the release must not run a second, normal one.
-            if (hardPress.current) {
-              hardPress.current = false
-              return
-            }
-            void act(false)
-          }}
-          onPointerDown={(e) => {
-            if (e.button !== 0) return // right click is the contextmenu path
-            hardPress.current = false
-            cancelPress()
-            pressAt.current = { x: e.clientX, y: e.clientY }
-            pressTimer.current = window.setTimeout(hardRefresh, 600)
-          }}
-          onPointerUp={cancelPress}
-          onPointerMove={(e) => {
-            // A finger never holds perfectly still; cancel on a real drag
-            // (the start of a scroll), not on a pixel of jitter.
-            const { x, y } = pressAt.current
-            if (Math.hypot(e.clientX - x, e.clientY - y) > 12) cancelPress()
-          }}
-          onPointerCancel={cancelPress}
-          onPointerLeave={cancelPress}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            hardRefresh()
-          }}
-          disabled={!online}
-        >
-          <RefreshCw size={17} className={busy ? 'spin' : ''} aria-hidden="true" />
-          Refresh
-        </Button>
-        <Tooltip label="What Refresh does">
-          <span className="block text-[13px] leading-snug">
-            <span className="block font-semibold text-text">Refresh</span>
-            <span className="mt-0.5 block text-muted">
-              Asks {instance} to re-read this application from the cluster. It changes nothing —
-              ArgoCD counts it as a read.
-            </span>
-            <span className="mt-2 block font-semibold text-text">Press and hold</span>
-            <span className="mt-0.5 block text-muted">
-              A hard refresh: the manifests are rendered again from source before the comparison,
-              which is what you want when the repository changed but the sync status did not.
-              Slower, and still a read.
-            </span>
-          </span>
-        </Tooltip>
-        </div>
-          </>
-        )}
-      </header>
-
-      {/* The spec sheet.
- *
- * Four of these six fields the product has never shown anywhere: the
- * repository, the target revision, the cluster and the destination
- * namespace. They are the facts an operator wants at exactly the moment they
- * have chosen one application out of ninety-nine and are deciding whether
- * what is deployed is what they think is deployed — and they are useless in a
- * list, where ninety-nine repositories are ninety-nine identical strings.
- *
- * So the labelled grid lives here, on the detail, and not on the card. On a
- * card it is four more lines under a rule: the resting row goes from 58px to
- * something over 100 and the list stops holding nine applications on arrival,
- * which is the one measurement this design is not allowed to lose. Small
- * cards were asked for twice.
- *
- * Below the header rather than inside it, because the header is sticky and
- * 120px of specification pinned to the top of the screen is 120px of the
- * resource tree that is never on it. This scrolls away, like the counters and
- * the search on the list.
- *
- * Fields with no value are not drawn at all — a field is a fact ArgoCD gave
- * us, and a column of em-dashes is not a specification. */}
-      {detail.data && (
-        <dl className="mx-4 mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-card border border-rule bg-panel px-3 py-2.5">
-          <Field label="Project" value={detail.data.spec.project} />
-          <Field label="Namespace" value={detail.data.spec.destination.namespace} mono />
-          <Field label="Repository" value={detail.data.spec.source?.repoURL} mono />
-          <Field label="Target" value={detail.data.spec.source?.targetRevision} mono />
-          <Field label="Cluster" value={detail.data.spec.destination.server} mono />
-        </dl>
+          {/* Refresh runs the full width because it is now the only action in
+              the product — every mutation was cut, and ArgoCD counts this as
+              a read. */}
+          <div className="flex px-4 py-4.5">
+            <Button className="flex-1" onClick={() => void act(false)} disabled={!online}>
+              <RefreshCw size={13} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
+              Refresh
+            </Button>
+          </div>
+        </>
       )}
 
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
-
-      <div id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'Tree' &&
-          (tree.isError ? (
-            <div className="mx-4 mt-3">
-              <Callout
-                icon={<ServerOff size={17} strokeWidth={2.2} />}
-                title="Could not load the resource tree"
-                action={
-                  <Button className="!h-10 !text-[14px]" onClick={() => void tree.refetch()}>
-                    Try again
-                  </Button>
-                }
+      <div className="flex items-center justify-between gap-2.5 border-b border-rule px-4 py-3.5">
+        <span className="t-mono text-[11px] leading-[1.6] text-dim">
+          resources
+          <br />
+          <b className="font-normal text-text">{nodes.length}</b>{' '}
+          {degraded > 0 && <span className="text-degraded">{degraded} degraded</span>}
+        </span>
+        <span className="flex items-center gap-2.5">
+          <button
+            onClick={() => setOnlyLoud(!onlyLoud)}
+            aria-pressed={onlyLoud}
+            aria-label="Show only resources that need looking at"
+            className="grid size-12 flex-none place-items-center rounded-control text-muted ring-1 ring-rule"
+            style={onlyLoud ? { boxShadow: 'inset 0 0 0 1px var(--edge-active)', color: 'var(--color-text)' } : undefined}
+          >
+            <ListFilter size={15} strokeWidth={1.3} aria-hidden="true" />
+          </button>
+          {/* A pill containing two pills, the active one carrying an inset ink
+              ring rather than a fill. */}
+          <span className="flex rounded-control ring-1 ring-rule" role="tablist">
+            {(['grouped', 'tree'] as View[]).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`t-mono flex h-[46px] items-center gap-1.5 rounded-segment px-[15px] text-[11.5px] ${
+                  view === v ? 'text-text' : 'text-dim'
+                }`}
+                style={view === v ? { boxShadow: 'inset 0 0 0 1px var(--edge-active)' } : undefined}
               >
-                <span className="t-mono block text-[12px]">{String(tree.error)}</span>
-              </Callout>
-            </div>
-          ) : tree.isLoading && !tree.data ? (
-            <>
-              <span className="skel mx-4 mt-2.5 block h-3.5 w-24" aria-hidden="true" />
-              <TreeSkeleton />
-            </>
-          ) : (
-            <>
-              <p className="px-4 pt-2.5 text-[13px] text-muted">
-                {tree.data?.nodes?.length ?? 0} resources
-              </p>
-              <Tree nodes={tree.data?.nodes ?? []} onSelect={setSelected} />
-            </>
-          ))}
-        {tab === 'Events' && <EventsTab instance={instance} name={name} />}
+                {v === 'tree' && <ListTree size={12} strokeWidth={1.2} aria-hidden="true" />}
+                {v === 'grouped' ? 'Grouped' : 'Tree'}
+              </button>
+            ))}
+          </span>
+        </span>
       </div>
+
+      {tree.isError ? (
+        <div className="mx-4 mt-3">
+          <Callout
+            icon={<ServerOff size={17} strokeWidth={2} />}
+            title="Could not load the resource tree"
+            action={
+              <Button className="!h-10" onClick={() => void tree.refetch()}>
+                Try again
+              </Button>
+            }
+          >
+            <span className="t-mono block text-[11.5px]">{String(tree.error)}</span>
+          </Callout>
+        </div>
+      ) : tree.isLoading && !tree.data ? (
+        <TreeSkeleton />
+      ) : view === 'grouped' ? (
+        <Groups nodes={shown} syncOf={syncOf} onSelect={setSelected} />
+      ) : (
+        <Tree nodes={shown} onSelect={setSelected} />
+      )}
+
+      <Sheet open={menu} onClose={() => setMenu(false)} title={name}>
+        <div className="-mx-4">
+          <button
+            onClick={() => {
+              setMenu(false)
+              setEvents(true)
+            }}
+            className="flex h-14 w-full items-center border-b border-rule px-4 text-left text-[14px]"
+          >
+            Events
+            <span className="t-mono ml-auto text-[11px] text-dim">what ArgoCD recorded</span>
+          </button>
+          <button
+            onClick={() => {
+              setMenu(false)
+              void act(true)
+            }}
+            disabled={!online}
+            className="flex h-14 w-full items-center px-4 text-left text-[14px] disabled:opacity-40"
+          >
+            Hard refresh
+            <span className="t-mono ml-auto text-[11px] text-dim">re-render the manifests</span>
+          </button>
+        </div>
+      </Sheet>
+
+      <Sheet open={events} onClose={() => setEvents(false)} title="Events">
+        <div className="-mx-4">
+          <EventsTab instance={instance} name={name} />
+        </div>
+      </Sheet>
 
       {selected && (
         <ResourceSheet
           node={selected}
           instance={instance}
-          instanceColor={color}
           app={name}
           onClose={() => setSelected(null)}
         />

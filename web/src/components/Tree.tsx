@@ -1,21 +1,23 @@
 import { useMemo } from 'react'
-import { ChevronRight, PackageOpen } from 'lucide-react'
-import type { ResourceNode } from '../api/types'
+import { ChevronRight, Heart, PackageOpen } from 'lucide-react'
+import type { ResourceNode, SyncStatus } from '../api/types'
 import { healthLoud } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
-import { EmptyState, KindIcon, tint } from './ui'
+import { EmptyState, ResourceMarks } from './ui'
 
 type TreeNode = ResourceNode & { children: TreeNode[] }
 
+/** The key both views and the sync lookup agree on. */
+export const refKey = (n: { group?: string; kind: string; name: string; namespace: string }) =>
+  `${n.group ?? ''}/${n.kind}/${n.namespace}/${n.name}`
+
 /** ArgoCD returns a flat node list with parentRefs; rebuild the hierarchy. */
 function build(nodes: ResourceNode[]): TreeNode[] {
-  const key = (n: { group?: string; kind: string; name: string; namespace: string }) =>
-    `${n.group ?? ''}/${n.kind}/${n.namespace}/${n.name}`
   const byKey = new Map<string, TreeNode>()
-  for (const n of nodes) byKey.set(key(n), { ...n, children: [] })
+  for (const n of nodes) byKey.set(refKey(n), { ...n, children: [] })
   const roots: TreeNode[] = []
   for (const n of byKey.values()) {
-    const parent = n.parentRefs?.length ? byKey.get(key(n.parentRefs[0])) : undefined
+    const parent = n.parentRefs?.length ? byKey.get(refKey(n.parentRefs[0])) : undefined
     if (parent) parent.children.push(n)
     else roots.push(n)
   }
@@ -27,23 +29,147 @@ function build(nodes: ResourceNode[]): TreeNode[] {
   return roots
 }
 
+/** The fully-qualified kind, which is what a group is named by: `apps/Deployment`,
+ * `external-secrets.io/ExternalSecret`, or a bare `ConfigMap` for core. */
+export const qualifiedKind = (n: ResourceNode) => (n.group ? `${n.group}/${n.kind}` : n.kind)
+
+export type SyncLookup = (n: ResourceNode) => SyncStatus | undefined
+
+function Empty() {
+  return (
+    <EmptyState icon={<PackageOpen size={22} strokeWidth={1.6} />} title="No resources">
+      ArgoCD reports nothing under this application. If it was only just created, it has not been
+      synced yet — nothing is wrong, there is simply nothing there.
+    </EmptyState>
+  )
+}
+
 /**
- * Nesting is drawn as vertical rules, one per ancestor, rather than paid for
- * in blank padding: a CronJob → Job → Pod chain stays legible three deep and
- * the name still owns the rest of the width.
+ * RESOURCES, GROUPED BY KIND — the default, and the reason the tree became a
+ * mode you switch into rather than the only way to read this screen. Twelve
+ * resources in nine groups read as one continuous texture, and a bracket down
+ * the side of each group's members was too quiet to fix it.
  *
- * Each row leads with its kind's glyph in an outlined tile — the same mark
- * the application rows lead with — coloured by the resource's own health, so
- * the shape of the tree is read before a single word of it. One line per
- * resource: the kind moved onto the name's line as a small muted word, which
- * halved every row and put the whole of a nine-resource tree on one screen.
+ * A GROUP IS A BAND AND EVERYTHING UNDER IT. The kind sits on a strip of
+ * raised ground running edge to edge, with its count hard right, and the
+ * group is that band plus every member beneath it until the next band.
+ * Nothing else parts them: no rule between groups, because the band's own
+ * edge already says it and a line would say it twice; no vertical guide,
+ * because the band makes belonging a matter of position rather than of
+ * connection. The only hairline left inside the block is the one between two
+ * members, inset to 16px so it cannot be mistaken for a band edge. Air goes
+ * ABOVE each band and none below it, so the band reads as the top of its
+ * block rather than as a divider floating between equal gaps.
  *
- * A troubled resource is marked with its status icon alone, not a worded
- * badge: its glyph already carries the colour, and a second `Degraded` in
- * words was stealing thirty characters from pod names that are the reason
- * anyone opened this screen. It is drawn with a coloured edge rather than a
- * red slab — nine rows of which, in a nine-resource tree, was most of the
- * screen.
+ * ONE LEFT EDGE. With the bracket gone the members do not indent: the band's
+ * label and every name under it start at the same 16px as the application
+ * name, the table labels and the list rows.
+ *
+ * The two marks in the right column are the other half of the rail's
+ * language. A resource has health and sync but no auto-sync of its own, so it
+ * gets no rail — a rail there would be half a mark pretending to be a whole
+ * one — and instead gets a heart and a circled check, grey when ordinary,
+ * coloured when not, and a dim `?` where ArgoCD did not report that state at
+ * all. Most of a tree is `?` for sync: only the application's own managed
+ * resources carry one, and a Pod three levels down is not one of them.
+ */
+export function Groups({
+  nodes,
+  syncOf,
+  onSelect,
+}: {
+  nodes: ResourceNode[]
+  syncOf: SyncLookup
+  onSelect: (n: ResourceNode) => void
+}) {
+  const groups = useMemo(() => {
+    const roots = build(nodes)
+    const kids = new Map<string, number>()
+    const walk = (list: TreeNode[]) => {
+      for (const n of list) {
+        kids.set(refKey(n), n.children.length)
+        walk(n.children)
+      }
+    }
+    walk(roots)
+
+    const by = new Map<string, ResourceNode[]>()
+    for (const n of nodes) {
+      const k = qualifiedKind(n)
+      const list = by.get(k)
+      if (list) list.push(n)
+      else by.set(k, [n])
+    }
+    return [...by.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([kind, members]) => ({
+        kind,
+        members: members.sort((a, b) => a.name.localeCompare(b.name)),
+        kids,
+      }))
+  }, [nodes])
+
+  if (nodes.length === 0) return <Empty />
+
+  return (
+    <div>
+      {groups.map(({ kind, members, kids }) => (
+        <section key={kind} className="[&+&]:pt-3">
+          <div className="t-mono flex h-10 items-center bg-band px-4">
+            <span className="truncate text-[12px]">{kind}</span>
+            <span className="ml-auto pl-3 text-[11.5px] text-muted">{members.length}</span>
+          </div>
+          <div className="px-4">
+            {members.map((n) => {
+              const health = n.health?.status
+              const bad = !!health && healthLoud(health)
+              const children = kids.get(refKey(n)) ?? 0
+              return (
+                <button
+                  key={refKey(n)}
+                  onClick={() => onSelect(n)}
+                  className="flex min-h-[60px] w-full items-center gap-3 py-2.5 text-left [&+button]:border-t [&+button]:border-rule"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate text-[14px] leading-[1.25] font-medium tracking-[-0.005em] ${bad ? 'text-degraded' : ''}`}
+                    >
+                      {n.name}
+                    </span>
+                    <span className="t-mono mt-1 block text-[10.5px] leading-[1.2] text-dim">
+                      {n.namespace || 'cluster-scoped'}
+                    </span>
+                  </span>
+                  {children > 0 && (
+                    <span
+                      className="t-mono mr-1 flex flex-none items-center gap-[3px] text-[10.5px] text-muted"
+                      title={`${children} resource${children === 1 ? '' : 's'} under this one`}
+                    >
+                      {children}
+                      <ChevronRight size={9} strokeWidth={1.5} aria-hidden="true" />
+                    </span>
+                  )}
+                  <ResourceMarks health={health} sync={syncOf(n)} />
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The same twelve resources as a hierarchy, for the question grouping cannot
+ * answer: which Pod belongs to which ReplicaSet. Nesting is drawn as vertical
+ * rules, one per ancestor, rather than paid for in blank padding, so a
+ * CronJob → Job → Pod chain stays legible three deep and the name still owns
+ * the width.
+ *
+ * One mark per row, at the head: a heart in the resource's own health. No
+ * sync mark here — the kind has taken the right-hand column, and a resource's
+ * place in the hierarchy is what this mode is for.
  */
 export function Tree({
   nodes,
@@ -54,63 +180,37 @@ export function Tree({
 }) {
   const roots = useMemo(() => build(nodes), [nodes])
 
-  const render = (n: TreeNode, depth: number) => {
-    const health = n.health?.status ?? ''
-    const loud = health !== '' && healthLoud(health)
-    const s = stateStyle(loud ? health : 'Healthy')
-    const StatusIcon = s.icon
+  const render = (n: TreeNode) => {
+    const health = n.health?.status
+    const bad = !!health && healthLoud(health)
     return (
-      <div key={`${n.group ?? ''}/${n.kind}/${n.namespace}/${n.name}`}>
-        <div className="flex items-stretch pl-4">
-          {Array.from({ length: depth }, (_, i) => (
-            <span key={i} className="w-3.5 shrink-0 border-l border-rule" />
-          ))}
-          <button
-            onClick={() => onSelect(n)}
-            className={`my-px flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-card px-2 text-left ${
-              loud ? 'bg-panel ring-1 ring-degraded/60' : 'bg-panel active:bg-raised'
-            }`}
-          >
-            <span
-              className="flex size-7 shrink-0 items-center justify-center rounded-tile"
-              style={{
-                boxShadow: `inset 0 0 0 1px ${tint(
-                  loud ? s.color : 'var(--color-rule)',
-                  'var(--tint-outline)',
-                )}`,
-                color: loud ? s.color : 'var(--color-muted)',
-              }}
-              aria-hidden="true"
-            >
-              <KindIcon kind={n.kind} size={15} />
-            </span>
-            <span className="min-w-0 flex-1 truncate">
-              <span className="t-name text-[14px]">{n.name}</span>
-              <span className="ml-1.5 text-[11px] text-muted">{n.kind}</span>
-            </span>
-            {loud && (
-              <span className="shrink-0" style={{ color: s.color }}>
-                <span className="sr-only">{s.label}</span>
-                <StatusIcon size={16} strokeWidth={2.4} aria-hidden="true" />
-              </span>
-            )}
-            <ChevronRight size={15} className="shrink-0 text-muted" aria-hidden="true" />
-          </button>
-        </div>
-        {n.children.map((c) => render(c, depth + 1))}
+      <div key={refKey(n)}>
+        <button
+          onClick={() => onSelect(n)}
+          className="flex h-11 w-full items-center gap-[9px] text-left"
+          title={health ? stateStyle(health).label : 'health not reported'}
+        >
+          <span className={`flex-none ${bad ? 'text-degraded' : 'text-dim'}`} aria-hidden="true">
+            <Heart size={12} strokeWidth={1.25} />
+          </span>
+          <span className={`truncate text-[14px] font-medium ${bad ? 'text-degraded' : ''}`}>
+            {n.name}
+          </span>
+          <span className="t-mono ml-auto flex-none pl-3 text-[10.5px] whitespace-nowrap text-dim">
+            {n.kind}
+          </span>
+        </button>
+        {n.children.length > 0 && (
+          <div className="ml-[5px] border-l border-rule pl-[15px]">
+            {n.children.map(render)}
+          </div>
+        )}
       </div>
     )
   }
 
-  if (nodes.length === 0) {
-    return (
-      <EmptyState icon={<PackageOpen size={22} strokeWidth={2} />} title="No resources">
-        ArgoCD reports nothing under this application. If it was only just created, it has not
-        been synced yet — nothing is wrong, there is simply nothing there.
-      </EmptyState>
-    )
-  }
-  return <div className="pt-1 pr-4 pb-2">{roots.map((n) => render(n, 0))}</div>
+  if (nodes.length === 0) return <Empty />
+  return <div className="px-4 pt-1.5 pb-2">{roots.map(render)}</div>
 }
 
 // Exported so the pure tree-building logic can be unit tested directly.

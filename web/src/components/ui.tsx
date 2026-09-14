@@ -1,109 +1,225 @@
 import type { ReactNode } from 'react'
-import { Box } from 'lucide-react'
+import { Check, CircleCheck, GitCompareArrows, Heart, Zap, ZapOff } from 'lucide-react'
 import { kindIcon, stateStyle } from '../lib/status'
 
 /**
  * The vocabulary the whole interface is built from.
  *
- * One idea carries it: state is an **outlined** badge — a coloured 1px edge,
- * a coloured icon, coloured text, and nothing behind it. Never a stripe, never
- * colour alone, and, since v6, never a filled block either.
+ * ONE RULE CARRIES IT: **the ordinary reading is grey, and only the exception
+ * is allowed a colour or full ink.** Every row still says all three of its
+ * states out loud — health, sync, auto-sync, including on the ninety-one that
+ * are fine — but `Healthy` and `Synced` are set in muted and the auto bolt in
+ * the mark grey, while `Degraded`, `OutOfSync` and the struck bolt of
+ * `manual` are the only things that speak. Ninety-one identical green
+ * verdicts would emphasise nothing and the two that matter would be lost in
+ * them; silence about the calm case is worse still, because then a row that
+ * says nothing is indistinguishable from a row that was not drawn.
  *
- * The fills went because the screen was a field of coloured rectangles: a
- * badge, an instance pill and a counter chip were each a small slab of tinted
- * paint, and thirty of them down a list is a poster, not an instrument. An
- * outline says exactly as much — it is the same icon, the same word and the
- * same colour — and it says it without claiming a rectangle of the page.
+ * Health keeps its colour where it cannot be missed and cannot crowd: the
+ * rail.
  *
- * It is also more legible, not less. A badge's own text used to sit inside a
- * wash made of itself, which was the worst of the three contrast cases in
- * this design and the one that forced every light-theme status colour darker
- * than it wanted to be. Outlined, the text sits on the card: the same six
- * colours read a full point higher.
- *
- * What still gets a fill, and why:
- *   - a card, a sheet, a toast and a tooltip — an object that has to occlude
- *     what is behind it is a surface, not a decoration;
- *   - the two card grounds for Degraded and Out of sync, which are the only
- *     tinted surfaces left, at a whisper of their old strength (see the
- *     tokens in index.css);
- *   - the one `strong` button a screen is *about*, which is the single place
- *     the accent is allowed to be a shape rather than a line;
- *   - a skeleton bar, whose entire job is to be seen.
+ * NOTHING HAS A RADIUS EXCEPT A CONTROL. Not a row, not a rule, not the
+ * key/value table, not a group. Roundness is therefore the whole affordance:
+ * if a corner is soft, you can press it.
  */
 
 /**
- * A colour at a fraction of itself, over whatever is behind it.
- *
- * `percent` takes a CSS custom property as well as a number, because these
- * fractions are not constants: 65% of a light colour over a dark ground and
- * 65% of a dark colour over paper are not the same amount of edge. Those call
- * sites pass `'var(--tint-outline)'` and the stylesheet answers per theme.
+ * A colour at a fraction of itself, over whatever is behind it. `percent`
+ * takes a CSS custom property as well as a number, because 65% of a light
+ * colour over black and 65% of a dark colour over paper are not the same
+ * amount of edge.
  */
 export const tint = (color: string, percent: number | string) =>
   `color-mix(in oklab, ${color} ${typeof percent === 'number' ? `${percent}%` : percent}, transparent)`
 
 /**
- * A state, said out loud: a coloured edge, a coloured glyph, a coloured word,
- * and the card showing through. `size="sm"` is the same badge for places that
- * are already dense — the resource tree, a sheet header — and drops the word
- * to a smaller face rather than dropping it altogether.
+ * THE MEMORABLE THING: a 3px bar carrying two states at once.
+ *
+ * Its COLOUR is health. Its TEXTURE is auto-sync — solid when ArgoCD will
+ * reconcile the application itself, broken into dashes when a person has to
+ * press something. Scrolling ninety-nine applications you are reading a
+ * barcode, and the stitched-through bars are the ones that will sit broken
+ * until you personally go and do it. It costs no chrome: the second state
+ * rides on a mark that had to be drawn anyway.
+ *
+ * It appears on every application row, and exactly once on a detail screen —
+ * beside the application's name. A *resource* has health and sync but no
+ * auto-sync of its own, so a rail there would be half a mark pretending to be
+ * a whole one.
  */
-export function StatusBadge({
-  state,
-  size = 'md',
-  label,
-}: {
-  state: string
-  size?: 'sm' | 'md'
-  label?: string
-}) {
-  const s = stateStyle(state)
-  const Icon = s.icon
-  const px = size === 'sm' ? 14 : 15
+export function Rail({ health, auto }: { health: string; auto: boolean }) {
+  return (
+    <i
+      className="rail"
+      data-auto={auto ? 'auto' : 'manual'}
+      style={{ '--rail': stateStyle(health).color } as React.CSSProperties}
+      aria-hidden="true"
+    />
+  )
+}
+
+/**
+ * Sync, as a word in the ink it deserves: `Synced` muted, `OutOfSync` amber.
+ * Always drawn — the calm case is a reading, not an absence.
+ */
+export function SyncWord({ sync }: { sync: string }) {
+  const out = sync === 'OutOfSync'
+  const unknown = sync !== 'Synced' && !out
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-pill font-medium ${
-        size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-2.5 text-[13px]'
-      }`}
-      style={{
-        // The edge, and nothing else. An inset shadow rather than a border so
-        // the badge's height is the same whether or not anything draws one.
-        boxShadow: `inset 0 0 0 1px ${tint(s.color, 'var(--tint-outline)')}`,
-        color: s.color,
-      }}
+      className={`flex items-center gap-[5px] ${out ? 'text-outofsync' : unknown ? 'text-dim' : 'text-muted'}`}
     >
-      <Icon size={px} strokeWidth={2.2} className={s.spin ? 'spin' : ''} aria-hidden="true" />
-      {label ?? s.label}
+      {out ? (
+        <GitCompareArrows size={11} strokeWidth={1.3} aria-hidden="true" />
+      ) : unknown ? null : (
+        <Check size={11} strokeWidth={1.3} aria-hidden="true" />
+      )}
+      {out ? 'OutOfSync' : unknown ? 'Unknown' : 'Synced'}
     </span>
   )
 }
 
 /**
- * The instance: a neutral outlined pill with a dot of the instance's colour.
+ * Auto-sync: the same glyph in the same slot on every row, and the exception
+ * is simply heavier. A hairline bolt in the mark grey when ArgoCD will
+ * reconcile this itself; struck through, in full ink, with the word `manual`
+ * when it will not.
  *
- * This was the most-repeated fill in the product — one on every row, one on
- * every card in Settings, one in every sheet — and an operator's instance
- * colours are arbitrary, whatever the configuration file happens to say, so a
- * solid block of one was the least meaningful paint on the screen.
- *
- * Outlining it *in that colour* was worse. `orders-worker` read "Out of sync" in
- * amber beside a `orders` pill outlined in green, and a green outline next to an
- * amber one says "this bit is fine" to anyone glancing — except it is not a
- * state at all, it is which server the application lives on. Two different
- * kinds of fact wearing the same clothes.
- *
- * So the separation is structural rather than chromatic, because the colours
- * are the user's and cannot be chosen around: **a status chip is an outline in
- * its own colour; an instance is a neutral outline with a coloured dot.** The
- * instance keeps its identity, nothing outlined in a status-like hue ever
- * stands beside a status again, and the shape is the one the instance filters
- * at the top of the list already use — a reader who has seen one has seen
- * both.
+ * On a list row the slot is a fixed 62px so the bolt sits at the same x
+ * whether or not the word is beside it, which is what lets the eye run down
+ * the column. On the detail there is one application and no column to keep,
+ * so `verbose` spends the room on saying it in full.
  */
+export function AutoMark({ auto, verbose }: { auto: boolean; verbose?: boolean }) {
+  return (
+    <span
+      className={`flex items-center justify-end gap-1 ${verbose ? '' : 'w-[62px]'} ${auto ? 'text-mark' : 'text-text'}`}
+      title={
+        auto
+          ? 'auto-sync: ArgoCD reconciles this application itself'
+          : 'manual: nothing moves until someone presses sync'
+      }
+    >
+      {auto ? (
+        <Zap size={11} strokeWidth={1.2} aria-hidden="true" />
+      ) : (
+        <ZapOff size={11} strokeWidth={1.2} aria-hidden="true" />
+      )}
+      <span className="sr-only">{auto ? 'auto-sync' : ''}</span>
+      {verbose ? (auto ? 'auto-sync' : 'manual') : !auto && 'manual'}
+    </span>
+  )
+}
+
+/**
+ * The other half of the language, for a resource: two marks in a fixed right
+ * column, a heart for health and a circled check for sync. Grey when
+ * ordinary, coloured when not, and a dim `?` where ArgoCD did not report that
+ * state at all — which for sync is most of a resource tree, since only the
+ * application's own managed resources carry one.
+ *
+ * `?` is not "unknown health". It is "nobody said", and that is a different
+ * claim from a status ArgoCD named Unknown.
+ */
+function Mark({ state, icon: Icon }: { state: string | undefined; icon: typeof Heart }) {
+  if (!state) {
+    return (
+      <span className="t-mono w-[11px] text-center text-[12px] leading-none text-dim" title="not reported">
+        ?
+      </span>
+    )
+  }
+  const s = stateStyle(state)
+  const ordinary = state === 'Healthy' || state === 'Synced'
+  return (
+    <span style={{ color: ordinary ? undefined : s.color }} title={s.label}>
+      <span className="sr-only">{s.label}</span>
+      <Icon size={12} strokeWidth={1.25} aria-hidden="true" />
+    </span>
+  )
+}
+
+export function ResourceMarks({ health, sync }: { health?: string; sync?: string }) {
+  return (
+    <span className="flex w-[46px] flex-none items-center justify-end gap-3 text-mark">
+      <Mark state={health} icon={Heart} />
+      <Mark state={sync} icon={CircleCheck} />
+    </span>
+  )
+}
+
+/**
+ * One fact in the key/value table: a mono label on the left, the value hard
+ * against the right edge. Hairline-ruled, no container, no radius, no fill —
+ * a tinted rounded panel is exactly what got an earlier attempt rejected.
+ *
+ * A message is language rather than a machine fact, so it is set in the sans
+ * and allowed to wrap. Everything else is mono and truncates.
+ *
+ * Renders nothing when there is no value. A spec sheet with six em-dashes in
+ * it is not a spec sheet.
+ */
+export function Fact({
+  label,
+  value,
+  children,
+  prose,
+}: {
+  label: string
+  value?: string
+  children?: ReactNode
+  prose?: boolean
+}) {
+  if (!value && !children) return null
+  return (
+    <div className="t-mono flex gap-3.5 px-4 py-2.5 text-[11.5px] [&+&]:border-t [&+&]:border-rule">
+      <dt className="flex-none basis-[104px] text-dim">{label}</dt>
+      <dd
+        className={`m-0 min-w-0 flex-1 text-right ${
+          prose ? 'font-sans text-[12.5px] leading-[1.4]' : 'truncate'
+        }`}
+        title={value}
+      >
+        {children ?? value}
+      </dd>
+    </div>
+  )
+}
+
+/** A Kubernetes kind as its glyph. Only the resource sheet uses one now — the
+ * grouped list says the kind in words, on its band. */
+export function KindIcon({ kind, size = 17 }: { kind: string; size?: number }) {
+  // oxlint-disable-next-line react/static-components
+  const Icon = kindIcon(kind)
+  return <Icon size={size} strokeWidth={2} aria-hidden="true" />
+}
+
+/**
+ * A state, said out loud, for the one place left that is not a row: the
+ * resource sheet's header. Hairline outlined in its own colour, never filled.
+ */
+export function StatusBadge({ state, label }: { state: string; label?: string }) {
+  const s = stateStyle(state)
+  const Icon = s.icon
+  return (
+    <span
+      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2.5 text-[13px]"
+      style={{
+        boxShadow: `inset 0 0 0 1px ${tint(s.color, 'var(--tint-outline)')}`,
+        color: s.color,
+      }}
+    >
+      <Icon size={14} strokeWidth={2} className={s.spin ? 'spin' : ''} aria-hidden="true" />
+      {label ?? s.label}
+    </span>
+  )
+}
+
+/** The instance, where a screen outside the two the mockup governs still has
+ * to name one: a neutral hairline box with a dot of the instance's colour. */
 export function InstancePill({ name, color }: { name: string; color: string }) {
   return (
-    <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-pill px-2 text-[12px] font-medium text-muted ring-1 ring-rule">
+    <span className="t-mono inline-flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2.5 text-[11.5px] text-muted ring-1 ring-rule">
       <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
       {name}
     </span>
@@ -111,100 +227,18 @@ export function InstancePill({ name, color }: { name: string; color: string }) {
 }
 
 /**
- * The anchor at the start of a row: a small outlined tile holding one glyph.
+ * THE CONTROL. One height, 48px; one radius, 10px; a hairline outline and
+ * never a fill. Refresh alone gets the brighter edge, being the one thing in
+ * this product that does something.
  *
- * Every list in this product was a wall of text starting at the same x with
- * nothing for the eye to catch on. The tile is that catch — and because it is
- * *the first thing on the row*, it is also the only place a state can be seen
- * without reading anything.
+ * `strong` is the single exception, and it lives entirely off the two screens
+ * the mockup governs: the sign-in button and the one that reloads a new
+ * build, which are the only places MazeCD's own colour is still spent.
  *
- * It obeys the rule the rest of the list obeys: **a resting application says
- * nothing**. At rest the tile is a plain box glyph in the rule colour, which
- * means "an application" and no more. Only when the row has something to
- * report does it take the state's glyph and the state's colour — and then it
- * is the loudest mark on the row, at its leading edge.
- *
- * Outlined, not the reference's tinted square: ninety-nine tinted squares is
- * the field of rectangles this pass exists to remove, and a tinted square in
- * the *accent* — which is what the reference does — would spend the product's
- * one colour ninety-nine times per screen on a decoration.
- */
-export function RowMark({ state, resting }: { state: string; resting: boolean }) {
-  const s = stateStyle(state)
-  const Icon = resting ? Box : s.icon
-  // At rest the edge is the rule colour at full strength — the faintest token
-  // there is — and a fraction of it would have disappeared on paper. A state
-  // colour is a strong colour, so it is taken at the outline fraction like
-  // every other chip.
-  const color = resting ? 'var(--color-rule)' : s.color
-  return (
-    <span
-      className="flex size-5 shrink-0 items-center justify-center rounded-tile"
-      style={{
-        boxShadow: `inset 0 0 0 1px ${resting ? color : tint(color, 'var(--tint-outline)')}`,
-        color,
-      }}
-      aria-hidden="true"
-    >
-      <Icon size={12} strokeWidth={2.3} className={!resting && s.spin ? 'spin' : ''} />
-    </span>
-  )
-}
-
-/**
- * One labelled fact: a small letter-spaced grey capital over its value.
- *
- * This is the whole of where the "engineered" reading comes from — data that
- * is named and aligned, the way a spec sheet names it, rather than figures
- * standing in columns and an ⓘ in a header apologising for them.
- *
- * Stacked, not label-left-value-right as the reference has it. Two columns on
- * a 393px screen are about 160px each; a 60px label beside the value leaves
- * 100px for `git@github.com:…`, which truncates almost everything worth
- * reading. Stacking gives the value the full column and costs 13px a row.
- *
- * Renders nothing at all when there is no value. A spec sheet with six
- * em-dashes in it is not a spec sheet.
- */
-export function Field({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
-  if (!value) return null
-  return (
-    <div className="min-w-0">
-      <dt className="text-[10px] leading-[14px] font-semibold tracking-[0.12em] text-muted uppercase">
-        {label}
-      </dt>
-      <dd className={`truncate text-[13px] leading-[17px] ${mono ? 't-mono' : ''}`} title={value}>
-        {value}
-      </dd>
-    </div>
-  )
-}
-
-/** A Kubernetes kind as its glyph. */
-export function KindIcon({ kind, size = 17 }: { kind: string; size?: number }) {
-  // Not a component created during render: `kindIcon` is a lookup in a
-  // module-level table of lucide components, so the reference is stable.
-  // oxlint-disable-next-line react/static-components
-  const Icon = kindIcon(kind)
-  return <Icon size={size} strokeWidth={2} aria-hidden="true" />
-}
-
-/** Seven-character revisions, in the face reserved for machine identifiers. */
-export function Revision({ sha, className = '' }: { sha?: string; className?: string }) {
-  if (!sha) return null
-  return <span className={`t-mono shrink-0 text-[12px] ${className}`}>{sha.slice(0, 7)}</span>
-}
-
-/**
- * The one button shape, with all four of its states.
- *
- * `quiet` is everything MazeCD asks for — Refresh, Retry, Show all, Sign out.
- * `strong` is the one button a screen is *about*: sign in, reload the build.
- *
- * `disabled:hover:` is not redundant with `disabled:opacity-40`. Without it a
- * disabled control still changes colour under the cursor, which reads as "this
- * works, click harder" — and the one button in this app is disabled exactly
- * when the phone is offline, which is when a false invitation costs the most.
+ * `disabled:hover:` is not redundant with the opacity. Without it a disabled
+ * control still changes under the cursor, which reads as "this works, click
+ * harder" — and the one button in this app is disabled exactly when the phone
+ * is offline, which is when a false invitation costs the most.
  */
 export function Button({
   tone = 'quiet',
@@ -212,11 +246,11 @@ export function Button({
   ...props
 }: { tone?: 'quiet' | 'strong' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const shape =
-    'inline-flex h-11 select-none items-center justify-center gap-2 rounded-control px-4 text-[15px] font-medium transition-colors disabled:opacity-40'
+    't-mono inline-flex h-12 select-none items-center justify-center gap-2.5 rounded-control px-4 text-[12.5px] tracking-[0.01em] disabled:opacity-40'
   const skin =
     tone === 'strong'
       ? 'bg-accent text-ink hover:opacity-90 active:opacity-80 disabled:hover:opacity-100'
-      : 'bg-raised text-text ring-1 ring-rule hover:bg-inset active:bg-inset disabled:hover:bg-raised'
+      : 'text-text ring-1 ring-[var(--edge-strong)] active:bg-band disabled:active:bg-transparent'
   return <button {...props} className={`${shape} ${skin} ${className}`} />
 }
 
@@ -228,19 +262,13 @@ const TONE = {
 export type Tone = keyof typeof TONE
 
 /**
- * Something went wrong, said in place — an outlined panel in the tone's hue,
+ * Something went wrong, said in place — a hairline box in the tone's hue,
  * with an icon, a sentence, and a way out.
  *
- * A bordered panel rather than a coloured stripe or a line of red text: the
- * stripe is invisible at the edge of a phone and the bare line is not
- * distinguishable from the content it interrupts. It used to carry a wash of
- * its hue as well; the border alone does the same job, and the panel now sits
- * on the page instead of painting over it.
- *
- * `action` is not optional decoration. The banner that matters most here is
- * an instance that did not answer — the list is still correct for the other
- * two, and what the operator needs is the name of the one that is missing and
- * a way to ask again, not an apology.
+ * The banner that matters most here is an instance that did not answer: the
+ * list below is still correct for the other two, and what the operator needs
+ * is the name of the one that is missing and a way to ask again, not an
+ * apology. That is why `action` is not optional decoration.
  */
 export function Callout({
   tone = 'degraded',
@@ -258,7 +286,7 @@ export function Callout({
   const c = TONE[tone]
   return (
     <div
-      className="rounded-card bg-panel px-3 py-2.5"
+      className="px-3.5 py-3"
       style={{ boxShadow: `inset 0 0 0 1px ${tint(c, 'var(--tint-outline)')}` }}
       role="status"
     >
@@ -267,23 +295,19 @@ export function Callout({
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] leading-snug font-semibold">{title}</p>
-          {children && <div className="mt-1 text-[13px] leading-snug text-muted">{children}</div>}
+          <p className="text-[14px] leading-snug font-medium">{title}</p>
+          {children && <div className="mt-1 text-[12.5px] leading-snug text-muted">{children}</div>}
         </div>
       </div>
-      {action && <div className="mt-2.5 flex gap-2">{action}</div>}
+      {action && <div className="mt-3 flex gap-2">{action}</div>}
     </div>
   )
 }
 
 /**
- * Nothing to show, and what to do about it.
- *
- * Centred in a bordered panel rather than as a line of muted text in the
- * middle of the page, because a sentence floating in empty space reads as a
- * rendering failure — the operator cannot tell "there is nothing here" from
- * "this did not load". A panel is a deliberate object: it says the screen
- * finished, and it found nothing.
+ * Nothing to show, and what to do about it. A deliberate object rather than a
+ * sentence floating in empty space, because the operator cannot tell "there
+ * is nothing here" from "this did not load".
  */
 export function EmptyState({
   icon,
@@ -297,16 +321,16 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className="mx-4 my-6 rounded-card border border-rule bg-panel px-6 py-10 text-center">
+    <div className="mx-4 my-8 px-2 py-6 text-center ring-1 ring-rule">
       <span
-        className="mx-auto mb-3 flex size-12 items-center justify-center rounded-pill text-muted ring-1 ring-rule"
+        className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full text-dim ring-1 ring-rule"
         aria-hidden="true"
       >
         {icon}
       </span>
-      <h2 className="t-name text-[17px]">{title}</h2>
+      <h2 className="t-name text-[16px]">{title}</h2>
       {children && (
-        <p className="mx-auto mt-2 max-w-[34ch] text-[14px] leading-relaxed text-muted">
+        <p className="mx-auto mt-2 max-w-[34ch] text-[12.5px] leading-relaxed text-muted">
           {children}
         </p>
       )}

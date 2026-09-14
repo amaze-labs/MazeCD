@@ -28,7 +28,19 @@ describe('toApp', () => {
       sync: 'Synced',
       revision: 'abc1234',
       operationPhase: 'Running',
+      autoSync: false,
     })
+  })
+
+  test('auto-sync is read from the presence of spec.syncPolicy.automated, and absent means manual', () => {
+    const a = argoApp('grafana', 'Healthy')
+    expect(toApp('home', a).autoSync).toBe(false)
+    expect(
+      toApp('home', { ...a, spec: { ...a.spec, syncPolicy: { automated: {} } } }).autoSync,
+    ).toBe(true)
+    // A syncPolicy with no `automated` block is still manual: ArgoCD will not
+    // reconcile it by itself, which is the only thing this flag answers.
+    expect(toApp('home', { ...a, spec: { ...a.spec, syncPolicy: {} } }).autoSync).toBe(false)
   })
 
   test('an application ArgoCD has said nothing about yet reads as empty, not undefined', () => {

@@ -3,42 +3,43 @@
  *
  * Not a spinner. A spinner says "wait" and nothing else; a skeleton says what
  * is coming, and it says it in the shape the thing will actually have — so the
- * eye has already found the age column, the name and the resource count before
- * the first byte lands, and nothing moves when it does.
+ * eye has already found the rail, the name and the verdict column before the
+ * first byte lands, and nothing moves when it does.
  *
  * Which means these are not generic grey bars: every measurement here is
- * copied from the component it stands in for. `AppRowSkeleton` is `AppRow`'s
- * grid, its three tracks, its padding and its border, with the text replaced.
- * If a row's geometry changes and this does not, the list will jump when the
- * data arrives, and that jump is the bug this exists to prevent.
+ * copied from the component it stands in for. If a row's geometry changes and
+ * this does not, the list will jump when the data arrives, and that jump is
+ * the bug this exists to prevent.
  */
 
-/** The name bar, varied down the list: eight identical rows read as a
- * pattern rather than as a list of applications with different names. */
+/** The name bar, varied down the list: eight identical rows read as a pattern
+ * rather than as a list of applications with different names. */
 const NAME_WIDTHS = ['62%', '44%', '78%', '55%', '70%', '38%', '66%', '50%']
 
 function AppRowSkeleton({ i }: { i: number }) {
   return (
     <div
-      className="grid grid-cols-[3.25rem_minmax(0,1fr)_2.25rem] items-center gap-x-2.5 rounded-card border border-rule bg-panel px-2.5 py-1.5"
+      className="flex gap-[13px] border-b border-rule py-3 pr-4 pl-[13px]"
       aria-hidden="true"
     >
-      {/* The mark and the age, in AppRow's leading column. The tile is drawn
-          outlined rather than as a skeleton bar, because it is the one thing
-          on the row that is already there before the data is. */}
-      <span className="col-start-1 row-span-2 flex flex-col items-end gap-0.5">
-        <span className="size-5 shrink-0 rounded-tile ring-1 ring-rule" />
-        <span className="skel h-3.5 w-7" />
-      </span>
-      <span className="skel col-start-2 row-start-1 h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
-      {/* The meta line is a state word and an instance pill and a revision,
-          not one long bar: a single wide block there read as a second title
-          and made the skeleton look like a two-line list it is not. */}
-      <span className="col-start-2 row-start-2 mt-0.5 flex items-center gap-1.5">
-        <span className="skel h-6 w-16 rounded-pill" />
-        <span className="skel h-3 w-14" />
-      </span>
-      <span className="skel col-start-3 row-span-2 ml-auto h-3.5 w-5" />
+      {/* The rail is drawn at the rule colour rather than as a shimmering bar:
+          it is the one thing on the row that is already there before the data
+          is, and a rail with no health yet is not a state to animate. */}
+      <span className="w-[3px] flex-none self-stretch bg-rule" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2.5">
+          <span className="skel h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
+          <span className="skel h-3.5 w-16 flex-none" />
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2.5">
+          <span className="skel h-3 w-28" />
+          <span className="skel h-3 w-20 flex-none" />
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2.5">
+          <span className="skel h-3 w-24" />
+          <span className="skel h-3 w-16 flex-none" />
+        </div>
+      </div>
     </div>
   )
 }
@@ -48,7 +49,7 @@ function AppRowSkeleton({ i }: { i: number }) {
  * thumb when the answer arrives. */
 export function AppListSkeleton() {
   return (
-    <div className="mt-2 flex flex-col gap-1.5 px-4 pb-2" aria-hidden="true">
+    <div aria-hidden="true">
       {Array.from({ length: 8 }, (_, i) => (
         <AppRowSkeleton key={i} i={i} />
       ))}
@@ -56,42 +57,61 @@ export function AppListSkeleton() {
   )
 }
 
-/** The detail header: title, the two state badges, the instance line and the
- * one button — in their places, at their sizes. */
+/** The detail header and the table under it: the rail, the project line, the
+ * name at 26px, the three verdicts, seven ruled facts and the one button. */
 export function AppDetailSkeleton() {
   return (
     <div aria-hidden="true">
-      <span className="skel block h-[23px] w-[64%]" />
-      <div className="mt-1.5 flex gap-1.5">
-        <span className="skel h-7 w-28 rounded-pill" />
-        <span className="skel h-7 w-24 rounded-pill" />
+      <div className="flex gap-[13px] pt-1.5 pr-4 pb-4 pl-[13px]">
+        <span className="w-[3px] flex-none self-stretch bg-rule" />
+        <div className="min-w-0 flex-1">
+          <span className="skel block h-3 w-24" />
+          <span className="skel mt-1.5 block h-[27px] w-[62%]" />
+          <span className="skel mt-2 block h-3.5 w-[70%]" />
+        </div>
       </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <span className="skel h-6 w-16 rounded-pill" />
-        <span className="skel h-3 w-24" />
+      <div className="border-y border-rule">
+        {Array.from({ length: 7 }, (_, i) => (
+          <div key={i} className="flex justify-between px-4 py-3 [&+&]:border-t [&+&]:border-rule">
+            <span className="skel h-3 w-20" />
+            <span className="skel h-3" style={{ width: NAME_WIDTHS[(i + 3) % 8] }} />
+          </div>
+        ))}
       </div>
-      <span className="skel mt-2.5 block h-11 w-full rounded-control" />
+      <div className="flex px-4 py-4.5">
+        <span className="h-12 flex-1 rounded-control ring-1 ring-rule" />
+      </div>
     </div>
   )
 }
 
-/** The tree: rows at the tap height they will have, stepped in the way a
- * tree steps in, so the indentation is legible before the names are. */
-const TREE_DEPTHS = [0, 1, 2, 0, 1, 2, 0, 0]
+/** The grouped resources: bands at 40px with member rows at 60px under them,
+ * in the rhythm the real list has. */
+const GROUP_SIZES = [1, 1, 2, 1, 3]
 
 export function TreeSkeleton() {
   return (
-    <div className="flex flex-col px-4 py-1" aria-hidden="true">
-      {TREE_DEPTHS.map((d, i) => (
-        <div key={i} className="flex">
-          {Array.from({ length: d }, (_, j) => (
-            <span key={j} className="w-3.5 shrink-0 border-l border-rule" />
-          ))}
-          <div className="my-px flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-card bg-panel px-2">
-            <span className="skel size-7 shrink-0 rounded-control" />
-            <span className="skel h-3.5" style={{ width: NAME_WIDTHS[(i + 2) % 8] }} />
+    <div aria-hidden="true">
+      {GROUP_SIZES.map((n, g) => (
+        <section key={g} className="[&+&]:pt-3">
+          <div className="flex h-10 items-center bg-band px-4">
+            <span className="skel h-3 w-32" />
           </div>
-        </div>
+          <div className="px-4">
+            {Array.from({ length: n }, (_, i) => (
+              <div
+                key={i}
+                className="flex min-h-[60px] items-center gap-3 py-2.5 [&+div]:border-t [&+div]:border-rule"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="skel block h-3.5" style={{ width: NAME_WIDTHS[(g + i) % 8] }} />
+                  <span className="skel mt-1.5 block h-2.5 w-20" />
+                </span>
+                <span className="skel h-3 w-[46px] flex-none" />
+              </div>
+            ))}
+          </div>
+        </section>
       ))}
     </div>
   )

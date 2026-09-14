@@ -1,34 +1,33 @@
 import type { Bucket } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
-import { tint } from './ui'
 
-/** Read order is triage order. */
+/** Read order is triage order, and it is the order of the bar's segments too,
+ * so a segment and its count are found in the same place. */
 const ORDER: Bucket[] = ['Degraded', 'OutOfSync', 'Progressing', 'Suspended', 'Unknown', 'Healthy']
 
 /**
- * The shape of the fleet, in numbers that cannot lie.
+ * The fleet, to scale: one bar, six segments, no labels on it — then the six
+ * counts as words underneath.
  *
- * This replaces a proportional bar whose 44px minimum segment width drew two
- * degraded applications the same width as ninety-four healthy ones — it
- * reported "six equal problems" when the truth was "ninety-seven fine, two on
- * fire". A count has no minimum width to distort: 2 is 2 next to 94.
+ * The bar answers "what shape is the fleet" before a single word is read: two
+ * degraded applications out of ninety-nine are two pixels of red at the left
+ * end of a green line, which is the truth, and it is a truth no list of
+ * numbers conveys at a glance. `min-width: 4px` is the one concession — a
+ * segment of one application out of ninety-nine would otherwise round to
+ * nothing and the fleet would look cleaner than it is.
  *
- * Empty buckets are not drawn, so an untroubled fleet is one green chip
- * rather than six chips of zeroes, and each chip filters the list to itself.
+ * The counts are the same six facts read the other way, and each one filters
+ * the list to itself. The ordinary reading is grey here too: the figure takes
+ * its state's colour, the word stays dim, and the one being filtered on takes
+ * full ink.
  *
- * Outlined, like everything else. These were the largest painted objects on
- * the list screen — six filled lozenges across the top, above a list whose
- * whole point is that most of it is calm. What tells a filtering chip from a
- * resting one is no longer a heavier wash but a heavier edge at full strength
- * against a 65% one, drawn as an inset shadow so nothing moves when it
- * changes.
- *
- * One row, scrolling, in urgency order with healthy last. Six worded chips
- * cannot fit 393px, and wrapping them cost two rows of an 852px screen
- * before the first application — furniture the operator pays for on arrival.
- * What falls off the right-hand edge is `91 Healthy`, which is the least
- * actionable number here: it is still counted, still tappable, still true,
- * one swipe away. Nothing is hidden, and the space goes to applications.
+ * A caveat the mockup inherits and this component is not allowed to hide:
+ * health and sync are two independent axes, so an application that is Healthy
+ * *and* OutOfSync is counted under `out of sync` alone, and `91 healthy` means
+ * "91 healthy and synced". The six still partition the fleet exactly — every
+ * application lands in one and only one, which is what the bar needs to be
+ * honest about proportion — but "healthy" here is the calm bucket, not the
+ * health axis. `lib/fleet.ts` holds the rule.
  */
 export function FleetCounters({
   counts,
@@ -43,31 +42,40 @@ export function FleetCounters({
   if (shown.length === 0) return null
 
   return (
-    <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4" role="group" aria-label="Filter by fleet state">
-      {shown.map((b) => {
-        const s = stateStyle(b)
-        const Icon = s.icon
-        const on = active === b
-        return (
-          <button
+    <>
+      <div className="mx-4 flex h-1 gap-0.5" aria-hidden="true">
+        {shown.map((b) => (
+          <i
             key={b}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onPick(on ? '' : b)}
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-pill px-2.5 text-[13px]"
-            style={{
-              boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${
-                on ? s.color : tint(s.color, 'var(--tint-outline)')
-              }`,
-              color: s.color,
-            }}
-          >
-            <Icon size={14} strokeWidth={2.2} className={s.spin ? 'spin' : ''} aria-hidden="true" />
-            <span className="font-semibold tabular-nums">{counts[b]}</span>
-            <span className="text-[11px] opacity-85">{s.label}</span>
-          </button>
-        )
-      })}
-    </div>
+            className="block min-w-1 rounded-[1px]"
+            style={{ background: stateStyle(b).color, flexGrow: counts[b] }}
+          />
+        ))}
+      </div>
+      <div
+        className="t-mono flex flex-wrap gap-x-[13px] gap-y-1 px-4 pt-2.5 pb-3.5 text-[10.5px] text-dim"
+        role="group"
+        aria-label="Filter by fleet state"
+      >
+        {shown.map((b) => {
+          const s = stateStyle(b)
+          const on = active === b
+          return (
+            <button
+              key={b}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(on ? '' : b)}
+              className={on ? 'text-text' : ''}
+            >
+              <b className="font-semibold" style={{ color: s.color }}>
+                {counts[b]}
+              </b>{' '}
+              {s.label.toLowerCase()}
+            </button>
+          )
+        })}
+      </div>
+    </>
   )
 }

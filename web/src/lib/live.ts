@@ -109,6 +109,7 @@ export function toApp(instance: string, a: AppDetail): App {
     unhealthyResources: a.status.resources?.filter(
       (r) => r.health && r.health.status !== 'Healthy',
     ).length,
+    autoSync: a.spec.syncPolicy?.automated != null,
   }
 }
 

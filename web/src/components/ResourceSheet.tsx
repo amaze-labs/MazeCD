@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Sheet } from './Sheet'
 import { api, argoPath } from '../api/client'
 import { streamLogs } from '../lib/logs'
-import { InstancePill, KindIcon, StatusBadge } from './ui'
+import { KindIcon, StatusBadge } from './ui'
 import type { ResourceNode } from '../api/types'
 
 const TABS = ['Logs', 'Manifest'] as const
@@ -11,13 +11,11 @@ const TABS = ['Logs', 'Manifest'] as const
 export function ResourceSheet({
   node,
   instance,
-  instanceColor,
   app,
   onClose,
 }: {
   node: ResourceNode
   instance: string
-  instanceColor: string
   app: string
   onClose: () => void
 }) {
@@ -30,14 +28,15 @@ export function ResourceSheet({
           underneath is the duplication this rebuild exists to remove. One
           line carries what the title does not: where it lives and how it is. */}
       <div className="flex flex-wrap items-center gap-2">
-        <InstancePill name={instance} color={instanceColor} />
-        {node.health?.status && <StatusBadge state={node.health.status} size="sm" />}
-        <span className="min-w-0 truncate text-[13px] text-muted">
-          {node.kind} in {node.namespace}
+        {node.health?.status && <StatusBadge state={node.health.status} />}
+        <span className="t-mono min-w-0 truncate text-[11.5px] text-muted">
+          {instance}
+          <i className="sep" aria-hidden="true" />
+          {node.kind} in {node.namespace || 'cluster-scope'}
         </span>
       </div>
       {node.health?.message && (
-        <p className="mt-2 rounded-card px-3 py-2 text-[13px] leading-snug text-degraded ring-1 ring-degraded/45">
+        <p className="mt-2 px-3 py-2 text-[12.5px] leading-snug text-degraded ring-1 ring-degraded/45">
           {node.health.message}
         </p>
       )}

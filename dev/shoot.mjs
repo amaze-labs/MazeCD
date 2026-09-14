@@ -81,9 +81,17 @@ async function shootTheme(theme) {
 
   await degradedRow.click()
   await page.waitForURL(/\/apps\//)
-  await page.getByText(/resources$/).waitFor()
+  await page.getByRole('tab', { name: 'Grouped' }).waitFor()
   await page.getByText('photo-library-ml-7d9f8b6b8-x2k9v').first().waitFor()
-  await shot('04-app-detail-tree.png')
+  await shot('04-app-detail-grouped.png')
+
+  // The same resources as a hierarchy. Grouping cannot say which Pod belongs
+  // to which ReplicaSet, which is the whole reason the tree survived as a
+  // mode you switch into.
+  await page.getByRole('tab', { name: 'Tree' }).click()
+  await page.waitForTimeout(150)
+  await shot('04b-app-detail-tree.png')
+  await page.getByRole('tab', { name: 'Grouped' }).click()
 
   // The one action, now with a receipt.
   await page.getByRole('button', { name: 'Refresh', exact: true }).click()
@@ -103,6 +111,18 @@ async function shootTheme(theme) {
   await page.getByRole('button', { name: /healthy/i }).click()
   await page.waitForTimeout(200)
   await shot('07-apps-list-healthy.png')
+
+  // The case the dashed rail exists for: applications that are Healthy and
+  // Synced and will still sit drifted until somebody presses something.
+  // A dashed rail that only ever appeared beside a red row would prove
+  // nothing about whether the texture reads on its own, so this shot is
+  // deliberately a mix -- `postgres-orders` and `prometheus` are manual and
+  // calm, their neighbours are automatic.
+  await page.getByRole('button', { name: /healthy/i }).click()
+  await page.getByLabel('Find an application').fill('pro')
+  await page.getByLabel('Find an application').blur()
+  await page.waitForTimeout(250)
+  await shot('07b-apps-list-manual.png')
 
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Settings' }).waitFor()
@@ -179,6 +199,7 @@ async function shootTheme(theme) {
   await page.goto(base)
   await page.getByRole('heading', { name: 'Applications' }).waitFor()
   await page.getByLabel('Find an application').fill('zzzz')
+  await page.getByLabel('Find an application').blur()
   await page.getByText('Nothing matches this filter').waitFor()
   await page.waitForTimeout(200)
   await shot('14-apps-list-no-match.png')

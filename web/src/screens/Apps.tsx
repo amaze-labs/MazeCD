@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PlugZap, Search, SearchX, ServerOff, Unplug } from 'lucide-react'
+import { PlugZap, SearchX, ServerOff, Unplug } from 'lucide-react'
 import { useApps, useInstances } from '../api/queries'
 import { AppRow } from '../components/AppRow'
 import { FleetCounters } from '../components/FleetCounters'
@@ -17,10 +17,10 @@ export function Apps() {
   const instances = useInstances()
   const [filter, setFilter] = useState<Filter>({ instance: '', state: '', q: '' })
 
-  // One way to ask again, used by the pull gesture and by every Retry on
-  // this screen -- so what the operator is told is the same sentence however
-  // they asked. A refresh that reports nothing is what this screen used to
-  // do, and it was indistinguishable from a tap that missed.
+  // One way to ask again, used by the pull gesture and by every Retry on this
+  // screen -- so what the operator is told is the same sentence however they
+  // asked. A refresh that reports nothing is indistinguishable from a tap
+  // that missed.
   const reload = async () => {
     const r = await apps.refetch()
     if (r.isError) {
@@ -39,13 +39,9 @@ export function Apps() {
 
   const { pull, refreshing } = usePullToRefresh(reload)
 
-  const colors = useMemo(
-    () => Object.fromEntries((instances.data ?? []).map((i) => [i.name, i.color])),
-    [instances.data],
-  )
-
   const all = useMemo(() => apps.data?.apps ?? [], [apps.data])
   const counts = useMemo(() => countBy(all), [all])
+  const names = useMemo(() => (instances.data ?? []).map((i) => i.name), [instances.data])
 
   const visible = useMemo(() => {
     const list = all.filter((a) => {
@@ -67,100 +63,107 @@ export function Apps() {
 
   return (
     <div>
-      {/* Only the title bar is pinned. The counters, the search and the
-          instance filters scroll away with the list: on an 852px screen every
-          pinned row is a card the operator cannot see, and two rows of chips
-          held permanently would cost three applications for the whole of a
-          ninety-nine-application scroll. They do their job on arrival. */}
-      <header className="pt-safe sticky top-0 z-10 flex items-baseline justify-between gap-3 bg-ink px-4 pb-2">
-        <h1 className="t-name text-[19px]">Applications</h1>
-        <div className="flex shrink-0 items-center gap-2">
+      {/* Nothing on this screen is pinned. On an 852px phone every pinned row
+          is an application the operator cannot see, and the counters, the
+          instances and the legend do their job on arrival. */}
+      <header className="pt-safe flex items-end justify-between gap-3 px-4 pb-3.5">
+        <h1 className="text-[23px] font-semibold tracking-[-0.02em]">Applications</h1>
+        <div className="t-mono pb-[3px] text-[11.5px] text-muted">
           {/* A count of 0 beside a screen full of skeletons is a statement,
               and it is the wrong one: nothing has been counted yet. */}
           {apps.isLoading && !apps.data ? (
-            <span className="skel block h-3 w-7" aria-hidden="true" />
+            <span className="skel block h-3 w-16" aria-hidden="true" />
+          ) : refreshing ? (
+            'updating'
+          ) : filtered ? (
+            <>
+              <b className="font-semibold text-text">{visible.length}</b> of {all.length}
+            </>
           ) : (
-            <span className="text-[13px] text-muted tabular-nums">
-              {refreshing ? 'Updating' : filtered ? `${visible.length} of ${all.length}` : all.length}
-            </span>
+            <>
+              <b className="font-semibold text-text">{all.length}</b> across {names.length || 1}{' '}
+              instance{names.length === 1 ? '' : 's'}
+            </>
           )}
         </div>
       </header>
 
-      <div className="px-4">
-        <FleetCounters
-          counts={counts}
-          active={filter.state}
-          onPick={(state) => setFilter({ ...filter, state })}
+      <FleetCounters
+        counts={counts}
+        active={filter.state}
+        onPick={(state) => setFilter({ ...filter, state })}
+      />
+
+      {/* Instances: an underline, not a pill. Which server an application
+          lives on is a place, and a place is a tab. The instance colours the
+          configuration file happens to carry are not spent here — this
+          palette spends colour only on status. */}
+      {names.length > 1 && (
+        <div className="t-mono flex gap-[22px] overflow-x-auto border-b border-rule px-4">
+          {['', ...names].map((n) => (
+            <button
+              key={n || 'all'}
+              aria-selected={filter.instance === n}
+              role="tab"
+              onClick={() => setFilter({ ...filter, instance: n })}
+              className={`-mb-px h-[46px] flex-none border-b-2 text-[12px] ${
+                filter.instance === n ? 'border-text text-text' : 'border-transparent text-muted'
+              }`}
+            >
+              {n || 'all'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* The mockup does not draw this, because ninety-nine rows fit in a
+          mockup and the eye is the filter there. It survives as a control in
+          the mockup's own vocabulary — 48px, 10px, a hairline, no fill —
+          rather than as the filled field it used to be. */}
+      <div className="px-4 py-3">
+        <input
+          value={filter.q}
+          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+          placeholder="find an application"
+          aria-label="Find an application"
+          className="t-mono h-12 w-full rounded-control px-3.5 text-[12.5px] ring-1 ring-rule outline-none placeholder:text-dim"
         />
       </div>
 
-      <div className="px-4 pt-2">
-        <div className="relative">
-          <Search
-            size={17}
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-            aria-hidden="true"
-          />
-          <input
-            value={filter.q}
-            onChange={(e) => setFilter({ ...filter, q: e.target.value })}
-            placeholder="Find an application"
-            aria-label="Find an application"
-            // A field needs an edge on paper: a white input on a near-white
-            // page had none, and the instance chips one row below already
-            // carry exactly this hairline.
-            className="h-11 w-full rounded-control bg-panel pr-3 pl-9 text-[15px] ring-1 ring-rule outline-none placeholder:text-muted focus:bg-raised"
-          />
-        </div>
-        {(instances.data ?? []).length > 1 && (
-          <div className="mt-2 flex gap-2 overflow-x-auto">
-            {(instances.data ?? []).map((i) => {
-              const on = filter.instance === i.name
-              return (
-                <button
-                  key={i.name}
-                  onClick={() => setFilter({ ...filter, instance: on ? '' : i.name })}
-                  aria-pressed={on}
-                  // Outlined either way; what changes is the weight of the
-                  // edge and the colour of the word. The filled version of
-                  // this control was a block of an arbitrary configuration
-                  // colour sitting above the list it was filtering.
-                  className="flex h-11 shrink-0 items-center gap-2 rounded-control px-3 text-[14px]"
-                  style={{
-                    boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${
-                      on ? i.color : 'var(--color-rule)'
-                    }`,
-                    color: on ? 'var(--color-text)' : 'var(--color-muted)',
-                  }}
-                >
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ background: i.color, opacity: on ? 1 : 0.6 }}
-                  />
-                  {i.name}
-                </button>
-              )
-            })}
-          </div>
-        )}
+      {/* The rail's second state, said once, in words. Two swatches and a
+          sentence: the dashes are not decoration, they are the applications
+          that will sit broken until somebody goes and presses something. */}
+      <div className="flex items-center gap-[9px] border-y border-rule px-4 py-2.5 text-[10.5px] text-dim">
+        <span className="h-[13px] w-[3px] flex-none bg-dim" aria-hidden="true" />
+        <span>auto-sync</span>
+        <span
+          className="ml-2 h-[13px] w-[3px] flex-none"
+          style={{
+            background:
+              'repeating-linear-gradient(to bottom, var(--color-dim) 0 4px, transparent 4px 8px)',
+          }}
+          aria-hidden="true"
+        />
+        <span>manual — nothing moves until you press sync</span>
       </div>
 
-      {pull > 0 && <p className="pt-2 text-center text-[13px] text-muted">Keep pulling to refresh</p>}
+      {pull > 0 && <p className="pt-2 text-center text-[12px] text-dim">Keep pulling to refresh</p>}
 
-      {/* The case that matters most: one instance is unreachable and the
-          other two are fine. The contract has always been partial results
-          plus a banner, and the banner is the whole of it -- the list below
-          is *correct*, it is just short by one instance, and only this panel
-          can say which one and offer to ask again. A line of red text could
-          not, which is why it is a panel with a border and an action. */}
+      {/* The case that matters most: one instance is unreachable and the other
+          two are fine. The list below is *correct*, it is just short by one
+          instance, and only this panel can say which one and offer to ask
+          again. */}
       {(apps.data?.errors ?? []).map((e) => (
         <div key={e.instance} className="mx-4 mt-3">
           <Callout
-            icon={<Unplug size={17} strokeWidth={2.2} />}
-            title={<><span className="t-mono">{e.instance}</span> did not answer</>}
+            icon={<Unplug size={17} strokeWidth={2} />}
+            title={
+              <>
+                <span className="t-mono">{e.instance}</span> did not answer
+              </>
+            }
             action={
-              <Button className="!h-10 !text-[14px]" onClick={() => void reload()}>
+              <Button className="!h-10" onClick={() => void reload()}>
                 Try that instance again
               </Button>
             }
@@ -174,71 +177,34 @@ export function Apps() {
       {apps.isError && (
         <div className="mx-4 mt-3">
           <Callout
-            icon={<ServerOff size={17} strokeWidth={2.2} />}
+            icon={<ServerOff size={17} strokeWidth={2} />}
             title="MazeCD could not load the fleet"
             action={
-              <Button className="!h-10 !text-[14px]" onClick={() => void reload()}>
+              <Button className="!h-10" onClick={() => void reload()}>
                 Try again
               </Button>
             }
           >
-            <span className="t-mono block text-[12px]">{String(apps.error)}</span>
+            <span className="t-mono block text-[11.5px]">{String(apps.error)}</span>
           </Callout>
         </div>
       )}
 
-      {/* The shape of the list, before the list. Only on a first load with
-          nothing cached: a refresh over applications already on screen must
-          not replace them with grey bars. */}
-      {/* The columns, named. Three small letter-spaced capitals on the list's
-          own grid tracks, once, above ninety-nine rows.
-
-          This replaces the ⓘ that used to sit in the header explaining what
-          the two numeric columns were. An ⓘ explaining a column is a label
-          that was not written: it costs a tap, it is invisible until taken,
-          and it admits in the header that the data below is unreadable. A
-          header row costs 14px on arrival, applies to every row at once, and
-          is the device a spec sheet has used for a century.
-
-          What is lost with the ⓘ is one sentence of nuance — that the age is
-          about the last *operation* and not about how long the application
-          has been broken. `LAST OP` says the load-bearing half of that in two
-          words, and the long form survives on each cell's title and
-          aria-label, where a screen reader still reads it.
-
-          It is drawn over the skeleton too. The skeleton's whole contract is
-          that nothing moves when the data lands, and a header row that
-          appears with the first application would push all ninety-nine down
-          by 22px at exactly the moment the eye had settled. */}
-      {(visible.length > 0 || (apps.isLoading && !apps.data)) && (
-        <div
-          aria-hidden="true"
-          className="mt-2.5 grid grid-cols-[3.25rem_minmax(0,1fr)_2.25rem] gap-x-2.5 px-[1.625rem] text-[10px] leading-[14px] font-semibold tracking-[0.14em] text-muted uppercase"
-        >
-          <span className="text-right">Last op</span>
-          <span>Application</span>
-          <span className="text-right">Res</span>
-        </div>
-      )}
-
+      {/* The shape of the list, before the list — and only on a first load
+          with nothing cached: a refresh over applications already on screen
+          must not replace them with grey bars. */}
       {apps.isLoading && !apps.data ? (
         <AppListSkeleton />
       ) : (
-        <div className="mt-1 flex flex-col gap-1.5 px-4 pb-2">
-          {visible.map((a) => (
-            <AppRow
-              key={`${a.instance}/${a.name}`}
-              app={a}
-              color={colors[a.instance] ?? 'var(--color-muted)'}
-            />
-          ))}
-        </div>
+        visible.map((a) => <AppRow key={`${a.instance}/${a.name}`} app={a} />)
       )}
 
-      {!apps.isLoading && visible.length === 0 && !apps.isError && (
-        filtered ? (
+      {!apps.isLoading &&
+        visible.length === 0 &&
+        !apps.isError &&
+        (filtered ? (
           <EmptyState
-            icon={<SearchX size={22} strokeWidth={2} />}
+            icon={<SearchX size={22} strokeWidth={1.6} />}
             title="Nothing matches this filter"
             action={
               <Button onClick={() => setFilter({ instance: '', state: '', q: '' })}>
@@ -246,22 +212,19 @@ export function Apps() {
               </Button>
             }
           >
-            {all.length} applications are loaded; none of them is in this state, on this
-            instance, or named like this.
+            {all.length} applications are loaded; none of them is in this state, on this instance,
+            or named like this.
           </EmptyState>
         ) : (
           <EmptyState
-            icon={<PlugZap size={22} strokeWidth={2} />}
+            icon={<PlugZap size={22} strokeWidth={1.6} />}
             title="No applications yet"
-            action={
-              <Button onClick={() => void reload()}>Check again</Button>
-            }
+            action={<Button onClick={() => void reload()}>Check again</Button>}
           >
             Every instance answered, and none of them has an application. Settings shows which
             instances are configured and whether their tokens are still being accepted.
           </EmptyState>
-        )
-      )}
+        ))}
     </div>
   )
 }

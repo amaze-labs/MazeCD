@@ -30,6 +30,12 @@ export type App = {
    * Resources that report no health at all are not counted — see the Go
    * field. Absent or 0 both mean "nothing to look at here". */
   unhealthyResources?: number
+  /** Whether `spec.syncPolicy.automated` is present: ArgoCD will reconcile
+   * this application itself rather than leaving it drifted until someone
+   * triggers a sync. Unlike `totalResources` there is no third state — an
+   * absent policy is a real "manual", not an unknown — so the rail's texture
+   * never has to draw an indeterminate case. */
+  autoSync: boolean
 }
 
 export type InstanceError = { instance: string; message: string }
@@ -70,6 +76,9 @@ export type AppDetail = {
     project: string
     source?: { repoURL?: string; path?: string; targetRevision?: string }
     destination: { server?: string; namespace?: string }
+    /** Only its presence is read; the prune/selfHeal sub-flags are not asked
+     * about anywhere. Mirrors `internal/argocd/apps.go`. */
+    syncPolicy?: { automated?: Record<string, unknown> }
   }
   status: {
     health?: { status: Health; message?: string }
