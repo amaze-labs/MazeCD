@@ -69,7 +69,9 @@ const fullSyncBody = `{
 }`
 
 func TestSyncRunsThenFinishes(t *testing.T) {
-	syncDuration = 20 * time.Millisecond
+	// Long enough that the running operation is observable on a GET without
+	// the test racing the timer that finishes it.
+	syncDuration = 300 * time.Millisecond
 	t.Cleanup(func() { syncDuration = 2 * time.Second })
 	srv, _ := serve(t, "home")
 
@@ -77,13 +79,24 @@ func TestSyncRunsThenFinishes(t *testing.T) {
 	if code := post(t, srv, "/api/v1/applications/doc-archive/sync", fullSyncBody, &out); code != 200 {
 		t.Fatalf("sync: status %d", code)
 	}
-	if out.Status.OperationState.Phase != "Running" {
-		t.Errorf("phase right after sync = %q, want Running", out.Status.OperationState.Phase)
+	// The response is the application as ArgoCD returns it: the operation has
+	// been stored, and status.operationState cleared, so there is nothing here
+	// to read a result from.
+	if out.Status.OperationState != nil {
+		t.Errorf("the sync response carries an operationState: %+v", out.Status.OperationState)
 	}
 	if out.Status.Sync.Status != "OutOfSync" {
 		t.Errorf("sync status while the operation runs = %q, want OutOfSync", out.Status.Sync.Status)
 	}
-	op := out.Status.OperationState.Operation
+
+	// Everything about the operation is read from the application afterwards,
+	// which is where a client has to read it too.
+	var running application
+	get(t, srv, "/api/v1/applications/doc-archive", &running)
+	if running.Status.OperationState.Phase != "Running" {
+		t.Errorf("phase right after sync = %q, want Running", running.Status.OperationState.Phase)
+	}
+	op := running.Status.OperationState.Operation
 	if op == nil || op.Sync == nil || !op.Sync.Prune || len(op.Sync.SyncOptions) != 8 {
 		t.Fatalf("the operation did not echo the request back: %+v", op)
 	}
@@ -126,6 +139,8 @@ func TestSyncRunsThenFinishes(t *testing.T) {
 }
 
 func TestSyncDryRunChangesNothing(t *testing.T) {
+	syncDuration = 20 * time.Millisecond
+	t.Cleanup(func() { syncDuration = 2 * time.Second })
 	srv, inst := serve(t, "utility")
 	before := *byName(inst.apps, "cert-manager")
 
@@ -134,16 +149,33 @@ func TestSyncDryRunChangesNothing(t *testing.T) {
 		`{"name":"cert-manager","dryRun":true,"prune":true}`, &out); code != 200 {
 		t.Fatalf("dry run: status %d", code)
 	}
-	if op := out.Status.OperationState; op == nil || op.Operation.Sync == nil || !op.Operation.Sync.DryRun {
-		t.Errorf("dry run response does not report itself as one: %+v", out.Status.OperationState)
+	// The response is ArgoCD's: an application whose status.operationState was
+	// cleared by util/argo.SetAppOperation on the way out. A client that reads
+	// a verdict off this reads a constant.
+	if out.Status.OperationState != nil {
+		t.Errorf("the sync response carries an operationState: %+v", out.Status.OperationState)
 	}
 	if out.Status.Sync.Status != "OutOfSync" {
 		t.Errorf("dry run moved the sync status to %q", out.Status.Sync.Status)
 	}
-	time.Sleep(30 * time.Millisecond) // long enough for a stray AfterFunc to land
+
+	// The verdict arrives afterwards, in status.operationState, which is the
+	// only place it is ever reported -- and nothing else about the application
+	// moves.
+	time.Sleep(100 * time.Millisecond)
 	after := byName(inst.apps, "cert-manager")
-	if after.Sync != before.Sync || after.Health != before.Health || after.Op != nil {
-		t.Errorf("dry run mutated the fixture: %+v -> %+v (op %+v)", before, *after, after.Op)
+	if after.Sync != before.Sync || after.Health != before.Health {
+		t.Errorf("dry run mutated the fixture: %+v -> %+v", before, *after)
+	}
+	op := after.Op
+	if op == nil || op.Phase != "Succeeded" || op.SyncResult == nil {
+		t.Fatalf("no dry-run operation was recorded: %+v", op)
+	}
+	if op.Operation.Sync == nil || !op.Operation.Sync.DryRun {
+		t.Errorf("the recorded operation does not report itself as a dry run: %+v", op.Operation.Sync)
+	}
+	if !strings.Contains(op.Message, "dry run") {
+		t.Errorf("dry-run message does not say so: %q", op.Message)
 	}
 }
 

@@ -116,8 +116,12 @@ var syncDuration = 2 * time.Second
 
 // startSync moves the application into a running operation. It runs in the
 // cycler's goroutine, the only writer of *App.
+//
+// A dry run gets an operation like any other -- ArgoCD's controller runs one,
+// and writes its outcome into status.operationState -- but it touches nothing
+// else: no cluster changed, so no health changed either.
 func startSync(a *App, req syncRequest) {
-	if a.Health == "Healthy" {
+	if !req.DryRun && a.Health == "Healthy" {
 		a.Health = "Progressing"
 	}
 	a.OperationPhase = "Running"
@@ -135,15 +139,21 @@ func startSync(a *App, req syncRequest) {
 // finishSync completes it. A selective sync (resources named in the request)
 // deliberately leaves the application OutOfSync: only part of it was synced,
 // which is exactly what ArgoCD reports.
+//
+// A dry run finishes the same way and leaves the application alone: the
+// operation is the only thing it produces, and status.operationState is the
+// only place its verdict is ever reported.
 func finishSync(a *App, req syncRequest) {
-	if a.Health == "Progressing" {
-		a.Health = "Healthy"
-	}
-	if req.Revision != "" {
-		a.Revision = req.Revision
-	}
-	if len(req.Resources) == 0 {
-		a.Sync = "Synced"
+	if !req.DryRun {
+		if a.Health == "Progressing" {
+			a.Health = "Healthy"
+		}
+		if req.Revision != "" {
+			a.Revision = req.Revision
+		}
+		if len(req.Resources) == 0 {
+			a.Sync = "Synced"
+		}
 	}
 	a.OperationPhase = "Succeeded"
 	a.OperationFinishedAt = time.Now().UTC()
@@ -153,6 +163,9 @@ func finishSync(a *App, req syncRequest) {
 	}
 	op.Phase = "Succeeded"
 	op.Message = "successfully synced (all tasks run)"
+	if req.DryRun {
+		op.Message = "successfully synced (dry run)"
+	}
 	op.FinishedAt = a.OperationFinishedAt.Format(time.RFC3339)
 	op.SyncResult = &syncOperationResult{Revision: a.Revision, Resources: syncedResources(a, req)}
 	a.Op = op
@@ -198,24 +211,6 @@ func syncedResources(a *App, req syncRequest) []resourceResult {
 		out = append(out, res)
 	}
 	return out
-}
-
-// dryRunState is the operation a dry run *would* have produced. It is built
-// for the response only and never stored: a dry run must leave the fixture
-// exactly as it found it.
-func dryRunState(a *App, req syncRequest) *operationState {
-	now := time.Now().UTC().Format(time.RFC3339)
-	return &operationState{
-		Operation: &operationSpec{Sync: &syncOperationSpec{
-			Revision: req.Revision, Prune: req.Prune, DryRun: true,
-			SyncStrategy: req.Strategy, Resources: req.Resources, SyncOptions: req.options(),
-		}},
-		Phase:      "Succeeded",
-		Message:    "successfully synced (dry run)",
-		StartedAt:  now,
-		FinishedAt: now,
-		SyncResult: &syncOperationResult{Revision: a.Revision, Resources: syncedResources(a, req)},
-	}
 }
 
 // ---- managed resources (the diff) --------------------------------------
@@ -487,18 +482,17 @@ func registerOperations(mux *http.ServeMux, inst *instance) {
 			badRequest(w, "invalid sync request: "+err.Error())
 			return
 		}
-		if req.DryRun {
-			// Nothing is mutated and nothing is published: the response is a
-			// snapshot of the untouched application, carrying the operation
-			// the dry run stood in for.
-			mustEncode(w, snapshot(inst, func() application {
-				out := toJSON(a)
-				out.Status.OperationState = dryRunState(a, req)
-				return out
-			}))
-			return
-		}
+		// THE RESPONSE CARRIES NO RESULT, AND A DRY RUN IS NO EXCEPTION.
+		// ArgoCD's Sync handler builds the operation and hands it to
+		// util/argo.SetAppOperation, which sets a.Status.OperationState = nil
+		// before the Update and returns that application
+		// (server/application/application.go). So status.operationState is
+		// always null on a sync response -- what happened is written by the
+		// controller a moment later and reaches a client on the application
+		// watch, which is the only place any verdict, dry run included, can
+		// honestly be read from.
 		out := mutate(inst, a, func() { startSync(a, req) })
+		out.Status.OperationState = nil
 		time.AfterFunc(syncDuration, func() {
 			inst.ops <- func() {
 				finishSync(a, req)
