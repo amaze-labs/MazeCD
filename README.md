@@ -1,13 +1,15 @@
 # MazeCD
 
 A mobile-first PWA for watching several ArgoCD instances from one screen: one
-aggregated application list, the resource tree, pod logs, and a login you only
-do once.
+aggregated application list, the resource tree, pod logs, what differs from
+git, the manifests git asks for, and a login you only do once.
 
-MazeCD is an observation instrument. It cannot sync, roll back, delete or
-change anything — the one button it has asks ArgoCD to re-read git, which
-ArgoCD counts as a read. The token you give it can be read-only, and should
-be.
+It can also act: synchronize an application, and run a resource's own ArgoCD
+actions (restart a Deployment, create a Job from a CronJob). Those two are the
+only things in MazeCD that change a cluster, they are the only two that need
+anything beyond a read-only token, and **the token decides**: give it `get`
+alone and MazeCD is the observation instrument it started as. There is still
+no rollback, no delete and no editing of anything.
 
 ## How it works
 
@@ -21,14 +23,18 @@ needed on the ArgoCD side.
 
 ### 1. Create an ArgoCD API token per instance
 
-On each instance, add a local account. MazeCD only ever reads, so the account
-needs nothing beyond `get`:
+On each instance, add a local account:
 
 ```yaml
 # argocd-cm
 data:
   accounts.mazecd: apiKey
 ```
+
+**The read-only policy.** Everything MazeCD *shows* — the list, the detail,
+the resource tree, the diff, the manifests, the refresh button, and the list
+of actions a resource offers — is `applications, get`, plus `logs, get` for
+pod logs:
 
 ```yaml
 # argocd-rbac-cm
@@ -39,16 +45,41 @@ data:
     g, mazecd, role:mazecd
 ```
 
+This is a legitimate way to run MazeCD, and it is the safe one: nothing on
+your phone can be made to change a cluster with this token. What you give up
+is Synchronize and the resource actions. Both are still *drawn* — the sheet
+cannot know what your token may do until it tries, and the action list itself
+is a `get` — so pressing either returns a 403 that MazeCD shows you as it
+arrived. If that is the trade you want, stop here.
+
+**To allow what MazeCD can write**, add whichever of these you actually want:
+
+```yaml
+    # Synchronize
+    p, role:mazecd, applications, sync, */*, allow
+    # ...at a revision other than the application's target (the revision box
+    # in the sync sheet, when you type something else into it)
+    p, role:mazecd, applications, override, */*, allow
+    # Resource actions: one line per group/kind/action, or a wildcard
+    p, role:mazecd, applications, action/apps/Deployment/restart, */*, allow
+    p, role:mazecd, applications, action/*, */*, allow
+```
+
+The `*/*` is `project/application`, so `*/*` means the whole instance. Scoping
+the write lines to one project — `p, role:mazecd, applications, sync,
+platform/*, allow` — while leaving `get` on `*/*` gives a phone that can see
+everything and sync one project, which is usually the policy worth writing.
+
 Then generate the token:
 
 ```bash
 argocd account generate-token --account mazecd
 ```
 
-That is the whole policy. There is no MazeCD screen that needs more, and
-nothing on your phone can be made to write to the cluster with this token.
 `applications, get` also covers the refresh button: ArgoCD implements
-`?refresh=` as a query parameter on the application GET.
+`?refresh=` as a query parameter on the application GET. A sync's prune, force,
+replace and dry-run flags need nothing beyond `sync`; a dry run is an ordinary
+sync request that ArgoCD is told not to apply.
 
 ### 2. Write the configuration
 
@@ -133,7 +164,11 @@ Run the backend with `MAZECD_CONFIG`, `MAZECD_PASSWORD_HASH` and
 
 ## What it deliberately does not do
 
-No push notifications, no watch streams (it polls every 8 seconds in the
-foreground), no ApplicationSet/Project/Repository administration, no
-multi-user support, no terminal into pods, and no passkeys — the session lasts
-90 days and renews itself, so a login is a twice-a-year event.
+No push notifications, no rollback or delete, no editing an application's
+spec, no ApplicationSet/Project/Repository administration, no multi-user
+support, no terminal into pods, and no passkeys — the session lasts 90 days and
+renews itself, so a login is a twice-a-year event.
+
+State arrives on ArgoCD's own watch streams, one per instance, closed while
+the tab is hidden; the 30-second poll behind them is the fallback for an
+instance whose stream cannot be held open.
