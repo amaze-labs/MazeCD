@@ -1,8 +1,13 @@
 # MazeCD
 
-A mobile-first PWA for operating several ArgoCD instances from one screen:
-one aggregated application list, full sync control, rollback, pod logs, and a
-login you only do once.
+A mobile-first PWA for watching several ArgoCD instances from one screen: one
+aggregated application list, the resource tree, pod logs, and a login you only
+do once.
+
+MazeCD is an observation instrument. It cannot sync, roll back, delete or
+change anything — the one button it has asks ArgoCD to re-read git, which
+ArgoCD counts as a read. The token you give it can be read-only, and should
+be.
 
 ## How it works
 
@@ -16,8 +21,8 @@ needed on the ArgoCD side.
 
 ### 1. Create an ArgoCD API token per instance
 
-On each instance, add a local account and give it the permissions you want
-MazeCD to have:
+On each instance, add a local account. MazeCD only ever reads, so the account
+needs nothing beyond `get`:
 
 ```yaml
 # argocd-cm
@@ -30,10 +35,6 @@ data:
 data:
   policy.csv: |
     p, role:mazecd, applications, get, */*, allow
-    p, role:mazecd, applications, sync, */*, allow
-    p, role:mazecd, applications, action/*, */*, allow
-    p, role:mazecd, applications, delete, */*, allow
-    p, role:mazecd, applications, override, */*, allow
     p, role:mazecd, logs, get, */*, allow
     g, mazecd, role:mazecd
 ```
@@ -44,9 +45,10 @@ Then generate the token:
 argocd account generate-token --account mazecd
 ```
 
-Grant only what you want to be able to do from your phone. Dropping
-`delete` and `override` from the policy makes MazeCD read-plus-sync only —
-the UI surfaces ArgoCD's own 403 for anything the token cannot do.
+That is the whole policy. There is no MazeCD screen that needs more, and
+nothing on your phone can be made to write to the cluster with this token.
+`applications, get` also covers the refresh button: ArgoCD implements
+`?refresh=` as a query parameter on the application GET.
 
 ### 2. Write the configuration
 

@@ -12,6 +12,9 @@ export type App = {
   sync: SyncStatus
   revision: string
   operationPhase?: string
+  /** ArgoCD's own `status.health.message`. Present only when it has one to
+   * give, which is why a row says nothing rather than inventing a reason. */
+  healthMessage?: string
 }
 
 export type InstanceError = { instance: string; message: string }
@@ -46,13 +49,6 @@ export type ResourceNode = ResourceRef & {
 
 export type ResourceTree = { nodes?: ResourceNode[] }
 
-export type RevisionHistory = {
-  id: number
-  revision: string
-  deployedAt: string
-  source?: { targetRevision?: string; path?: string; repoURL?: string }
-}
-
 export type AppDetail = {
   metadata: { name: string; namespace: string }
   spec: {
@@ -69,20 +65,9 @@ export type AppDetail = {
       startedAt?: string
       finishedAt?: string
     }
-    history?: RevisionHistory[]
     conditions?: { type: string; message: string }[]
     resources?: (ResourceRef & { version?: string; status?: SyncStatus; health?: { status: Health } })[]
   }
-}
-
-export type ManagedResource = {
-  group: string
-  kind: string
-  name: string
-  namespace: string
-  targetState: string
-  liveState: string
-  diff?: string
 }
 
 export type AppEvent = {
