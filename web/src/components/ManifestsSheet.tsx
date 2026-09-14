@@ -3,6 +3,7 @@ import { Sheet } from './Sheet'
 import { Button, Callout, EmptyState, Fact } from './ui'
 import { SheetListSkeleton } from './Skeleton'
 import { useManifests } from '../api/queries'
+import { shortRev } from '../lib/rev'
 
 /**
  * DESIRED MANIFESTS — what Git renders, before anything is applied.
@@ -63,11 +64,8 @@ export function ManifestsSheet({
 }) {
   const q = useManifests(instance, name)
   const manifests = q.data?.manifests ?? []
-  // A resolved commit is 40 characters of hex and the rest of the app shows
-  // seven of them; a revision that is a branch or a tag is a name and must
-  // survive whole. Shorten only what is unambiguously a sha.
   const revision = q.data?.revision
-  const shortRevision = revision && /^[0-9a-f]{40}$/.test(revision) ? revision.slice(0, 7) : revision
+  const shortRevision = shortRev(revision)
 
   return (
     <Sheet open onClose={onClose} title="Desired manifests" icon={<FileCode size={15} />}>

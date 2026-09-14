@@ -27,6 +27,7 @@ import { healthLoud } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
 import { toast } from '../lib/toast'
 import { ago } from '../lib/ago'
+import { shortRev } from '../lib/rev'
 import { EventsTab } from './tabs/EventsTab'
 import type { ResourceNode, SyncStatus } from '../api/types'
 
@@ -225,7 +226,7 @@ export function AppDetailScreen() {
             <Fact label="repository" value={spec?.source?.repoURL} />
             <Fact label="target rev" value={spec?.source?.targetRevision} />
             <Fact label="cluster" value={spec?.destination.server} />
-            <Fact label="revision" value={status?.sync?.revision?.slice(0, 7)} />
+            <Fact label="revision" value={shortRev(status?.sync?.revision)} />
             {op && (
               <Fact label="finished">
                 {op.phase && (

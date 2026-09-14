@@ -5,6 +5,7 @@ import { Button, Callout, EmptyState } from './ui'
 import { SheetListSkeleton } from './Skeleton'
 import { useManagedResources } from '../api/queries'
 import { differs, entryOf, headline, splitPath, type Change, type Entry } from '../lib/diff'
+import { shortRev } from '../lib/rev'
 
 /**
  * WHAT DIFFERS — the answer to the question every yellow row has been asking.
@@ -215,7 +216,7 @@ export function DiffSheet({
             <span className="ml-1.5">in the cluster</span>
             <i className="sep" aria-hidden="true" />
             <b className="font-normal">+</b>
-            <span className="ml-1.5">in Git{revision ? ` at ${revision.slice(0, 7)}` : ''}</span>
+            <span className="ml-1.5">in Git{revision ? ` at ${shortRev(revision)}` : ''}</span>
           </p>
 
           <div className="mt-3.5 -mx-4">

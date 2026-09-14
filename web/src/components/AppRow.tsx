@@ -5,6 +5,7 @@ import { AutoMark, Rail, SyncWord } from './ui'
 import { healthLoud } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
 import { ago } from '../lib/ago'
+import { shortRev } from '../lib/rev'
 
 /**
  * One application: a rail, then three lines whose right edges align into one
@@ -71,7 +72,7 @@ export function AppRow({ app }: { app: App }) {
 
         <div className="t-mono mt-1 flex items-baseline justify-between gap-2.5 text-[11.5px] text-dim">
           <span className="truncate">
-            {app.revision.slice(0, 7)}
+            {shortRev(app.revision)}
             {app.totalResources !== undefined && (
               <>
                 <i className="sep" aria-hidden="true" />
