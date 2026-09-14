@@ -184,6 +184,15 @@ async function main() {
 
   // ---- 5. a reconnect shows now, not then --------------------------------
   await step(['a reconnect after a blackout shows the current world, not the stale one'], async () => {
+    // WITHOUT SECTION 3 THERE IS NOTHING HERE TO CHECK. `frozen` is the row as
+    // it stood while the document was hidden, and it is assigned on that
+    // section's last line: if section 3 threw -- the thing step() exists to
+    // survive -- it is still '', and `agrees('', 'Healthy')`, `wentStale` and
+    // `shown !== frozen` are all trivially true against an empty string. This
+    // check would then print PASS having observed nothing, which is the one
+    // thing a harness must never do. Throwing here makes step() fail it loudly
+    // instead, naming the reason.
+    if (!frozen) throw new Error('section 3 never recorded the frozen row, so nothing here was observed')
     // Still hidden: wait until the frozen row actually disagrees with the
     // stub, so what follows is a demonstrably stale view being corrected
     // rather than one that happened to be right.
