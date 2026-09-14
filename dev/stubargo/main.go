@@ -80,9 +80,11 @@ type operationState struct {
 // listResourceStatus mirrors one entry of ArgoCD's status.resources[]: enough
 // to drive MazeCD's total/unhealthy resource counts.
 type listResourceStatus struct {
+	Group     string  `json:"group,omitempty"`
 	Kind      string  `json:"kind"`
 	Name      string  `json:"name"`
 	Namespace string  `json:"namespace"`
+	Status    string  `json:"status,omitempty"`
 	Health    *health `json:"health,omitempty"`
 }
 
@@ -123,26 +125,48 @@ func toJSON(a *App) application {
 	return app
 }
 
-// resourceStatuses fakes status.resources[] for the applications list:
-// a.ResourceCount entries total. The first a.UnhealthyResources carry the
-// app's own health status and message, so a Degraded row's unhealthy count
-// has a believable cause. A third of the remainder report no health field at
-// all -- many resource kinds (ConfigMaps, Secrets, Services, ...) genuinely
-// never do -- and the rest are explicitly Healthy.
+// resourceStatuses fakes status.resources[] for the applications list.
+//
+// The first entries are the application's real *managed* resources -- the
+// parentless nodes of its resource tree -- so the detail screen can join the
+// two and show a per-resource sync mark on exactly the resources ArgoCD
+// reports one for. A Pod under a ReplicaSet has no sync status of its own and
+// must stay absent, which is what makes the "?" on those rows honest rather
+// than a gap in the fixture.
+//
+// The remainder is padding up to a.ResourceCount, which is what gives the
+// list its varied "N res" figures. The first a.UnhealthyResources of the
+// whole set carry the app's own health status and message, so a Degraded
+// row's unhealthy count has a believable cause; a third of the rest report no
+// health field at all -- many resource kinds genuinely never do -- and the
+// remainder are explicitly Healthy.
 func resourceStatuses(a *App) []listResourceStatus {
 	kinds := []string{
 		"Deployment", "ReplicaSet", "Pod", "Service", "ConfigMap", "Secret",
 		"ServiceAccount", "Role", "RoleBinding", "PersistentVolumeClaim",
 		"CronJob", "Ingress",
 	}
-	rest := a.ResourceCount - a.UnhealthyResources
-	noHealth := rest / 3
 
-	out := make([]listResourceStatus, a.ResourceCount)
-	for i := range out {
-		out[i] = listResourceStatus{
-			Kind: kinds[i%len(kinds)], Name: fmt.Sprintf("%s-%d", a.Name, i), Namespace: a.Name,
+	var out []listResourceStatus
+	for _, n := range resourceTree(a) {
+		if len(n.ParentRefs) > 0 {
+			continue
 		}
+		out = append(out, listResourceStatus{
+			Group: n.Group, Kind: n.Kind, Name: n.Name, Namespace: n.Namespace,
+			Status: a.Sync,
+		})
+	}
+	for i := len(out); i < a.ResourceCount; i++ {
+		out = append(out, listResourceStatus{
+			Kind: kinds[i%len(kinds)], Name: fmt.Sprintf("%s-%d", a.Name, i),
+			Namespace: a.Name, Status: a.Sync,
+		})
+	}
+
+	rest := len(out) - a.UnhealthyResources
+	noHealth := rest / 3
+	for i := range out {
 		switch {
 		case i < a.UnhealthyResources:
 			out[i].Health = &health{Status: a.Health, Message: a.HealthMessage}
