@@ -244,13 +244,19 @@ export function Button({
   tone = 'quiet',
   className = '',
   ...props
-}: { tone?: 'quiet' | 'strong' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: { tone?: 'quiet' | 'strong' | 'faint' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const shape =
     't-mono inline-flex h-12 select-none items-center justify-center gap-2.5 rounded-control px-4 text-[12.5px] tracking-[0.01em] disabled:opacity-40'
   const skin =
     tone === 'strong'
       ? 'bg-accent text-ink hover:opacity-90 active:opacity-80 disabled:hover:opacity-100'
-      : 'text-text ring-1 ring-[var(--edge-strong)] active:bg-band disabled:active:bg-transparent'
+      : // `faint` is the way out of a sheet standing beside the thing the
+        // sheet is for: the ordinary hairline and muted ink, so the two
+        // weights the design already defines carry the whole hierarchy and
+        // Cancel never has to be shouted down with a colour.
+        tone === 'faint'
+        ? 'text-muted ring-1 ring-rule active:bg-band'
+        : 'text-text ring-1 ring-[var(--edge-strong)] active:bg-band disabled:active:bg-transparent'
   return <button {...props} className={`${shape} ${skin} ${className}`} />
 }
 

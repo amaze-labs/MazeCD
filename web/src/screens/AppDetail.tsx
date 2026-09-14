@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   CornerDownRight,
   EllipsisVertical,
+  GitCompareArrows,
   ListFilter,
   ListTree,
   RefreshCw,
@@ -16,6 +17,7 @@ import { AutoMark, Button, Callout, Fact, Rail, SyncWord } from '../components/u
 import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
 import { Sheet } from '../components/Sheet'
 import { ResourceSheet } from '../components/ResourceSheet'
+import { SyncSheet } from '../components/SyncSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
@@ -42,6 +44,7 @@ export function AppDetailScreen() {
   const [selected, setSelected] = useState<ResourceNode | null>(null)
   const [menu, setMenu] = useState(false)
   const [events, setEvents] = useState(false)
+  const [sync, setSync] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const spec = detail.data?.spec
@@ -222,13 +225,25 @@ export function AppDetailScreen() {
             <Fact label="message" value={op?.message} prose />
           </dl>
 
-          {/* Refresh runs the full width because it is now the only action in
-              the product — every mutation was cut, and ArgoCD counts this as
-              a read. */}
-          <div className="flex px-4 py-4.5">
+          {/* TWO ACTIONS THAT ARE NOT EQUALS, on one row.
+              Refresh keeps the width it had when it was the only thing in the
+              product: it is pressed twenty times a day, ArgoCD counts it as a
+              read, and the biggest target should be the safest one. Sync is
+              the smaller of the two — not because it matters less, but because
+              it must not be the button the thumb lands on by accident, and
+              because it does not act when pressed. Its ellipsis says so: it
+              opens the sheet, and the sheet is where the weight of this
+              decision was deliberately put. */}
+          <div className="flex gap-2.5 px-4 py-4.5">
             <Button className="flex-1" onClick={() => void act(false)} disabled={!online}>
               <RefreshCw size={13} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
               Refresh
+            </Button>
+            <Button onClick={() => setSync(true)} disabled={!online}>
+              {/* The same glyph the word OutOfSync wears three lines above:
+                  this is the button that answers it. */}
+              <GitCompareArrows size={13} strokeWidth={1.35} aria-hidden="true" />
+              Sync…
             </Button>
           </div>
         </>
@@ -326,6 +341,18 @@ export function AppDetailScreen() {
           <EventsTab instance={instance} name={name} />
         </div>
       </Sheet>
+
+      {/* Mounted only while it is open, like the resource sheet: closing it
+          throws the form away, which is what makes reopening it a fresh
+          decision rather than a stale one. */}
+      {sync && detail.data && (
+        <SyncSheet
+          instance={instance}
+          name={name}
+          detail={detail.data}
+          onClose={() => setSync(false)}
+        />
+      )}
 
       {selected && (
         <ResourceSheet
