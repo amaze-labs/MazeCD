@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "icons": "node scripts/icons.mjs",
     "shoot": "node ../dev/shoot.mjs",
-    "live": "node ../dev/live.mjs"
+    "live": "node ../dev/live.mjs",
+    "redeploy": "node ../dev/redeploy.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",

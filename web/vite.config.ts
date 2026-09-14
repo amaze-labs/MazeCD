@@ -31,15 +31,32 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        // ArgoCD state is never cached: a stale sync status shown as current
-        // is an operational hazard, not a convenience. Workbox's RegExpRoute
-        // matches against the full url.href, not just the pathname, so an
-        // anchored `/^\/api\//` regex here would never match `https://...`
-        // and silently never fire.
-        runtimeCaching: [
-          { urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' },
-        ],
+        // ArgoCD state is never cached, and the way to guarantee that is to
+        // give /api/ no route at all rather than a NetworkOnly one. Workbox
+        // only calls `event.respondWith()` when some route matches, so with
+        // none the browser fetches /api/ itself and the worker is never in
+        // the response path. That is strictly stronger than NetworkOnly --
+        // and NetworkOnly was actively harmful here. MazeCD holds one
+        // never-ending watch stream open per instance; routed through the
+        // worker, those are fetch events that never complete, so the active
+        // worker never has "no work", and Chromium will not activate a
+        // waiting worker over an active one that is still working -- however
+        // many times it is sent SKIP_WAITING. That is what kept a running
+        // client on the old bundle after a deploy. Nothing else routes /api/
+        // either: the navigation fallback below denylists it, and the
+        // precache manifest is build assets only.
         cleanupOutdatedCaches: true,
+        // One flat sw.js instead of an AMD shim plus a workbox-*.js chunk.
+        // In the split form the whole worker body -- the SKIP_WAITING
+        // listener included -- lives inside an async `define([...])`
+        // callback, so the listener is registered a microtask *after* the
+        // script is evaluated. A worker sits in `waiting` unrunning, and the
+        // spec only starts one for an event type its initial, synchronous
+        // evaluation registered a listener for: once the waiting worker has
+        // been evicted for idleness, SKIP_WAITING would never wake it. That
+        // is a race, not the bug above, but it is a race on the one thing
+        // this app must never get wrong.
+        inlineWorkboxRuntime: true,
       },
     }),
   ],
