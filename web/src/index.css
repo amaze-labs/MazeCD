@@ -26,12 +26,15 @@
 }
 
 @theme {
-  /* Surfaces, darkest to lightest. */
-  --color-ink: #0a0f14;
-  --color-panel: #121a22;
-  --color-raised: #18222d;
+  /* Surfaces, darkest to lightest. The page sits distinctly below the cards:
+     that gap is what makes a card read as an object rather than as a row in
+     a table, and it is the only thing separating one application from the
+     next — there are no hairlines anywhere in the list. */
+  --color-ink: #05080c;
+  --color-panel: #131c26;
+  --color-raised: #1c2734;
   --color-inset: #1b2630;
-  --color-rule: #263240;
+  --color-rule: #26323f;
   --color-text: #e8eef4;
   --color-muted: #7e8c9a;
   /* Muted text sitting on a state-tinted surface, where plain --color-muted
@@ -45,22 +48,25 @@
   --color-progressing: #0daeeb;
   --color-degraded: #e96d76;
   --color-outofsync: #f4c030;
-  --color-suspended: #766f94;
+  /* ArgoCD ships #766f94, which reads at 4.1:1 as text on --color-ink.
+     Lightened along its own hue until it clears 4.5:1. */
+  --color-suspended: #9b93bd;
   --color-unknown: #ccd6dd;
 
   /* Ink shifted toward a status hue. Surfaces, not status colour: white text
      has to stay comfortably readable on them. */
-  --color-surface-degraded: #3a1b21;
-  --color-surface-outofsync: #201a0f;
+  --color-surface-degraded: #2a1216;
+  --color-surface-outofsync: #241d10;
   --color-text-degraded: #f2b8bd;
 
   --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Radius by role, not one radius for everything. */
-  --radius-sheet: 14px;
-  --radius-control: 14px;
-  --radius-pill: 10px;
+  --radius-sheet: 18px;
+  --radius-card: 14px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
 }
 
 html {
@@ -108,44 +114,12 @@ body {
   letter-spacing: -0.02em;
 }
 
-/* The status gutter: the product's one structural device. A row's left edge
-   carries health above and sync below, so the two states that used to be
-   indistinguishable green dots are now different places. */
-.gutter {
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  width: 3px;
-  display: flex;
-  flex-direction: column;
-}
-.gutter > * { flex: 1; }
-
-/* Progressing: a slow vertical sweep down the gutter. The only motion in the
-   app that a person did not ask for. */
-.sweep {
-  position: relative;
-  overflow: hidden;
-  background: color-mix(in oklab, var(--color-progressing) 24%, transparent);
-}
-.sweep::after {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  height: 55%;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    var(--color-progressing) 45%,
-    var(--color-progressing) 55%,
-    transparent
-  );
-  animation: sweep 1900ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-@keyframes sweep {
-  from { transform: translateY(-100%); }
-  to { transform: translateY(282%); }
+/* The one piece of motion nobody asked for: a progressing state turns its
+   own icon. Slow enough to read as "still working", not as a spinner. */
+.spin { animation: spin 2.2s linear infinite; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sweep::after { animation: none; transform: none; height: 100%; background: var(--color-progressing); }
+  .spin { animation: none; }
 }

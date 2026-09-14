@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useOnline } from '../lib/online'
-import { AppsIcon, SettingsIcon } from './ui'
+import { LayoutList, SlidersHorizontal } from 'lucide-react'
 
 export function Shell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
@@ -37,9 +37,9 @@ export function Shell({ children }: { children: ReactNode }) {
         )}
         {children}
       </main>
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-panel/95 backdrop-blur">
-        {tab('/', 'Applications', <AppsIcon />)}
-        {tab('/settings', 'Settings', <SettingsIcon />)}
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-panel">
+        {tab('/', 'Applications', <LayoutList size={21} aria-hidden="true" />)}
+        {tab('/settings', 'Settings', <SlidersHorizontal size={21} aria-hidden="true" />)}
       </nav>
     </div>
   )

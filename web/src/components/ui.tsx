@@ -1,37 +1,49 @@
-import type { ReactNode } from 'react'
-import type { Health, SyncStatus } from '../api/types'
-import { healthColor, syncColor } from '../lib/status'
-import { healthLoud, syncLoud } from '../lib/fleet'
+import { kindIcon, stateStyle } from '../lib/status'
 
 /**
  * The vocabulary the whole interface is built from.
  *
- * One idea carries it: a row's left edge is a two-segment gutter, health
- * above and sync below. Two states that used to be two identical green dots
- * are now two different *places*, which is readable at a glance and survives
- * being three pixels wide. The same device is the product's icon.
+ * One idea carries it: state is a filled badge — icon, word, ArgoCD's colour —
+ * never a stripe and never colour alone. A three-pixel gutter clipped against
+ * the edge of a phone was unreadable and looked like a rendering artefact; a
+ * badge survives a glance, a screenshot, and colour blindness.
  */
 
-const tint = (color: string, percent: number) =>
+export const tint = (color: string, percent: number) =>
   `color-mix(in oklab, ${color} ${percent}%, transparent)`
 
 /**
- * The status gutter. A resting application shows it at a whisper — it reads
- * as the column's spine, not as a signal. Anything else brings it up to full
- * strength, and a progressing application's health segment sweeps.
- *
- * Loudness comes from the same two predicates the fleet bar counts with, so
- * no row can draw a stripe the summary above it has filed under healthy.
+ * A state, said out loud. `size="sm"` is the same badge for places that are
+ * already dense — the resource tree, a sheet header — and drops the word to a
+ * smaller face rather than dropping it altogether.
  */
-export function StatusGutter({ health, sync }: { health: Health; sync: SyncStatus }) {
+export function StatusBadge({
+  state,
+  size = 'md',
+  label,
+}: {
+  state: string
+  size?: 'sm' | 'md'
+  label?: string
+}) {
+  const s = stateStyle(state)
+  const Icon = s.icon
+  const px = size === 'sm' ? 14 : 15
   return (
-    <span className="gutter" aria-hidden="true">
-      {health === 'Progressing' ? (
-        <span className="sweep" />
-      ) : (
-        <span style={{ background: tint(healthColor(health), healthLoud(health) ? 100 : 18) }} />
-      )}
-      <span style={{ background: tint(syncColor(sync), syncLoud(sync) ? 100 : 18) }} />
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-pill font-medium ${
+        size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-2.5 text-[13px]'
+      }`}
+      style={{
+        // 12%, not more: a heavier fill lifts the badge's own background far
+        // enough that #e96d76 on a degraded card drops under 4.5:1.
+        background: tint(s.color, 12),
+        boxShadow: `inset 0 0 0 1px ${tint(s.color, 32)}`,
+        color: s.color,
+      }}
+    >
+      <Icon size={px} strokeWidth={2.2} className={s.spin ? 'spin' : ''} aria-hidden="true" />
+      {label ?? s.label}
     </span>
   )
 }
@@ -45,10 +57,10 @@ export function StatusGutter({ health, sync }: { health: Health; sync: SyncStatu
 export function InstancePill({ name, color }: { name: string; color: string }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center rounded-pill px-1.5 py-px text-[12px] leading-4 font-medium"
+      className="inline-flex h-6 shrink-0 items-center rounded-pill px-2 text-[12px] font-medium"
       style={{
-        background: tint(color, 16),
-        color: `color-mix(in oklab, ${color} 40%, var(--color-text))`,
+        background: tint(color, 18),
+        color: `color-mix(in oklab, ${color} 45%, var(--color-text))`,
       }}
     >
       {name}
@@ -56,110 +68,17 @@ export function InstancePill({ name, color }: { name: string; color: string }) {
   )
 }
 
-/** Health above, sync below, in words. Same order as the gutter. */
-export function StatePair({ health, sync }: { health: Health; sync: SyncStatus }) {
-  const line = (label: string, value: string, color: string) => (
-    <span className="flex items-center gap-2">
-      <span className="h-4 w-[3px] shrink-0 rounded-[1px]" style={{ background: color }} />
-      <span className="text-[13px] text-muted">
-        <span className="sr-only">{label}: </span>
-        {value}
-      </span>
-    </span>
-  )
-  return (
-    <span className="flex flex-col gap-1">
-      {line('Health', health || 'Unknown', healthColor(health))}
-      {line('Sync', sync || 'Unknown', syncColor(sync))}
-    </span>
-  )
-}
-
-/**
- * Every sheet that can change something names what it will change first:
- * acting on the wrong instance is the main hazard of a multi-instance client.
- */
-export function SheetTarget({
-  instance,
-  color,
-  production,
-  name,
-  detail,
-}: {
-  instance: string
-  color: string
-  production?: boolean
-  name: string
-  detail?: ReactNode
-}) {
-  return (
-    <div className="rounded-pill bg-inset px-3 py-2.5">
-      <span className="flex flex-wrap items-center gap-1.5">
-        <InstancePill name={instance} color={color} />
-        {production && (
-          <span className="rounded-pill bg-outofsync/15 px-1.5 py-px text-[12px] leading-4 font-medium text-outofsync">
-            production
-          </span>
-        )}
-      </span>
-      <p className="t-name mt-1.5 text-[17px]">{name}</p>
-      {detail && <p className="mt-0.5 text-[13px] text-muted-tint">{detail}</p>}
-    </div>
-  )
+/** A Kubernetes kind as its glyph. */
+export function KindIcon({ kind, size = 17 }: { kind: string; size?: number }) {
+  // Not a component created during render: `kindIcon` is a lookup in a
+  // module-level table of lucide components, so the reference is stable.
+  // oxlint-disable-next-line react/static-components
+  const Icon = kindIcon(kind)
+  return <Icon size={size} strokeWidth={2} aria-hidden="true" />
 }
 
 /** Seven-character revisions, in the face reserved for machine identifiers. */
 export function Revision({ sha, className = '' }: { sha?: string; className?: string }) {
   if (!sha) return null
-  return <span className={`t-mono text-[12px] ${className}`}>{sha.slice(0, 7)}</span>
+  return <span className={`t-mono shrink-0 text-[12px] ${className}`}>{sha.slice(0, 7)}</span>
 }
-
-/* Icons: stroked, 22px, currentColor. Drawn rather than installed — five
-   glyphs do not justify a dependency. */
-
-const svg = (children: ReactNode, size = 22) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.7"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    {children}
-  </svg>
-)
-
-export const AppsIcon = () =>
-  svg(
-    <>
-      <path d="M4 6h2M9 6h11" />
-      <path d="M4 12h2M9 12h11" />
-      <path d="M4 18h2M9 18h11" />
-    </>,
-  )
-
-export const SettingsIcon = () =>
-  svg(
-    <>
-      <path d="M3 7h10M17 7h4" />
-      <circle cx="15" cy="7" r="2.2" />
-      <path d="M3 17h4M11 17h10" />
-      <circle cx="9" cy="17" r="2.2" />
-    </>,
-  )
-
-export const BackIcon = () => svg(<path d="M14 5l-7 7 7 7" />, 18)
-
-export const TrashIcon = () =>
-  svg(
-    <>
-      <path d="M4 7h16" />
-      <path d="M9 7V5h6v2" />
-      <path d="M6 7l1 12h10l1-12" />
-    </>,
-    20,
-  )

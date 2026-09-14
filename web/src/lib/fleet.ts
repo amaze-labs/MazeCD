@@ -38,22 +38,20 @@ export function bucketOf(a: { health: Health; sync: SyncStatus }): Bucket {
 export const tinted = (bucket: Bucket) => bucket === 'Degraded' || bucket === 'OutOfSync'
 
 /**
- * How loudly a row's own surface speaks. Elevation encodes urgency: broken
- * things come toward the reader, everything else lies flat at the page's own
- * value and carries no card treatment at all.
+ * How loudly a card speaks, as depth rather than as a stripe.
  *
- * Only the two buckets that need acting on are tinted. Suspended and Unknown
- * are accounted for in the fleet bar and marked in the gutter, but they do
- * not lift the row: they are worth seeing, not worth interrupting for.
+ * Every application is a card; urgency decides how far off the page it sits.
+ * A degraded card is tinted toward its status hue and casts a real shadow, an
+ * out-of-sync card is tinted and flat, and everything else rests at the card
+ * surface with the faintest of edges. Eight cards on a screen, and the two
+ * that are on fire are the two that come forward.
  */
 export function surfaceOf(bucket: Bucket): string {
-  // The press state has to match the surface: brightening works on a row
-  // that has a background, but on a flat row it would only wash out the
-  // text, so a flat row gets a background for the length of the press.
   if (bucket === 'Degraded')
-    return 'z-[1] bg-surface-degraded shadow-[0_8px_20px_-10px_rgba(233,109,118,0.45)] active:brightness-125'
-  if (bucket === 'OutOfSync') return 'bg-surface-outofsync active:brightness-125'
-  return 'active:bg-panel'
+    return 'bg-surface-degraded shadow-[0_10px_24px_-12px_rgba(233,109,118,0.55)] ring-1 ring-degraded/25 active:brightness-110'
+  if (bucket === 'OutOfSync')
+    return 'bg-surface-outofsync ring-1 ring-outofsync/20 active:brightness-110'
+  return 'bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.4)] active:bg-raised'
 }
 
 export function countBy(apps: App[]): Record<Bucket, number> {

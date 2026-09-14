@@ -1,15 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
+import { CircleCheck, KeyRound, LogOut, Server, TriangleAlert } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useInstances } from '../api/queries'
 import { api } from '../api/client'
 import { useAuth } from '../lib/auth'
-import { InstancePill } from '../components/ui'
+import { InstancePill, tint } from '../components/ui'
 import type { InstanceInfo } from '../api/types'
 
-/** One word for the connection, because a coloured dot said nothing. */
-function link(i: InstanceInfo): { word: string; className: string } {
-  if (!i.reachable) return { word: 'Unreachable', className: 'text-degraded' }
-  if (!i.tokenValid) return { word: 'Token rejected', className: 'text-outofsync' }
-  return { word: 'Connected', className: 'text-healthy' }
+/**
+ * The connection, in the same grammar as everything else: an icon, a word and
+ * a colour. Not an ArgoCD health state, so it does not borrow the badge — but
+ * it is read the same way, and a bare green word was the last place on this
+ * screen still speaking 2010s admin table.
+ */
+function link(i: InstanceInfo): { word: string; icon: LucideIcon; color: string } {
+  if (!i.reachable)
+    return { word: 'Unreachable', icon: TriangleAlert, color: 'var(--color-degraded)' }
+  if (!i.tokenValid)
+    return { word: 'Token rejected', icon: KeyRound, color: 'var(--color-outofsync)' }
+  return { word: 'Connected', icon: CircleCheck, color: 'var(--color-healthy)' }
 }
 
 export function Settings() {
@@ -23,12 +32,12 @@ export function Settings() {
 
   return (
     <div className="px-4">
-      <header className="pt-safe pb-3">
-        <h1 className="t-name text-[26px]">Settings</h1>
+      <header className="pt-safe pb-4">
+        <h1 className="t-name text-[19px]">Settings</h1>
       </header>
 
-      <section className="border-t border-rule pt-4">
-        <h2 className="t-name text-[17px]">Instances</h2>
+      <section>
+        <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">Instances</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted">
           These come from the configuration file mounted into MazeCD. To change one, edit the file
           and restart the server.
@@ -36,23 +45,44 @@ export function Settings() {
         <ul className="mt-3 flex flex-col gap-0.5">
           {(instances.data ?? []).map((i) => {
             const state = link(i)
+            const StateIcon = state.icon
             return (
-              <li key={i.name} className="rounded-pill bg-panel px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <InstancePill name={i.name} color={i.color} />
-                  {i.production && (
-                    <span className="rounded-pill bg-outofsync/15 px-1.5 py-px text-[12px] leading-4 font-medium text-outofsync">
-                      production
+              <li
+                key={i.name}
+                className="flex items-center gap-3 rounded-card bg-panel px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.4)]"
+              >
+                <span
+                  className="flex size-9 shrink-0 items-center justify-center rounded-control"
+                  style={{ background: tint(i.color, 16), color: i.color }}
+                  aria-hidden="true"
+                >
+                  <Server size={17} strokeWidth={2} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <InstancePill name={i.name} color={i.color} />
+                    {i.production && (
+                      <span className="inline-flex h-6 items-center rounded-pill bg-outofsync/15 px-2 text-[12px] font-medium text-outofsync">
+                        production
+                      </span>
+                    )}
+                    <span
+                      className="inline-flex h-6 items-center gap-1.5 rounded-pill px-2 text-[12px] font-medium"
+                      style={{
+                        background: tint(state.color, 12),
+                        boxShadow: `inset 0 0 0 1px ${tint(state.color, 32)}`,
+                        color: state.color,
+                      }}
+                    >
+                      <StateIcon size={13} strokeWidth={2.2} aria-hidden="true" />
+                      {state.word}
                     </span>
+                  </div>
+                  <p className="t-mono mt-1 truncate text-[12px] text-muted">{i.url}</p>
+                  {i.error && (
+                    <p className="mt-1 text-[13px] leading-snug text-text-degraded">{i.error}</p>
                   )}
-                  <span className={`ml-auto shrink-0 text-[13px] ${state.className}`}>
-                    {state.word}
-                  </span>
                 </div>
-                <p className="t-mono mt-1.5 truncate text-[12px] text-muted">{i.url}</p>
-                {i.error && (
-                  <p className="mt-1 text-[13px] leading-snug text-text-degraded">{i.error}</p>
-                )}
               </li>
             )
           })}
@@ -64,9 +94,9 @@ export function Settings() {
         </ul>
       </section>
 
-      <section className="mt-6 border-t border-rule pt-4">
-        <h2 className="t-name text-[17px]">Build</h2>
-        <dl className="mt-2 flex flex-col gap-1 text-[15px]">
+      <section className="mt-6">
+        <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">Build</h2>
+        <dl className="mt-2 flex flex-col gap-1 rounded-card bg-panel px-3 py-2.5 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Server</dt>
             <dd className="t-mono text-[13px]">{version.data?.version ?? '…'}</dd>
@@ -81,8 +111,9 @@ export function Settings() {
       <section className="mt-6 pb-4">
         <button
           onClick={() => void logout()}
-          className="h-12 w-full rounded-control border border-rule text-[15px] active:bg-raised"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-control bg-raised text-[15px] font-medium ring-1 ring-rule active:bg-inset"
         >
+          <LogOut size={17} aria-hidden="true" />
           Sign out
         </button>
       </section>

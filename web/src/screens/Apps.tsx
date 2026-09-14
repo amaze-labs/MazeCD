@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Search } from 'lucide-react'
 import { useApps, useInstances } from '../api/queries'
 import { AppRow } from '../components/AppRow'
-import { FleetBar } from '../components/FleetBar'
+import { FleetCounters } from '../components/FleetCounters'
 import { bucketOf, countBy, type Bucket } from '../lib/fleet'
 import { healthRank } from '../lib/status'
 import { usePullToRefresh } from '../lib/pullToRefresh'
+import { tint } from '../components/ui'
 
 type Filter = { instance: string; state: Bucket | ''; q: string }
 
@@ -47,50 +49,60 @@ export function Apps() {
 
   return (
     <div>
-      {/* The fleet bar is the header's own bottom edge: no hairline under it,
-          because the bar already draws the line. */}
-      <header className="pt-safe sticky top-0 z-10 bg-ink/95 px-4 backdrop-blur">
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="t-name text-[26px]">Applications</h1>
-          <span className="shrink-0 text-[13px] text-muted">
-            {refreshing ? 'Updating' : filtered ? `${visible.length} of ${all.length}` : all.length}
-          </span>
-        </div>
-        <div className="-mx-4">
-          <FleetBar
-            counts={counts}
-            active={filter.state}
-            onPick={(state) => setFilter({ ...filter, state })}
-          />
-        </div>
+      {/* Only the title bar is pinned. The counters, the search and the
+          instance filters scroll away with the list: on an 852px screen every
+          pinned row is a card the operator cannot see, and two rows of chips
+          held permanently would cost three applications for the whole of a
+          ninety-nine-application scroll. They do their job on arrival. */}
+      <header className="pt-safe sticky top-0 z-10 flex items-baseline justify-between gap-3 bg-ink px-4 pb-2">
+        <h1 className="t-name text-[19px]">Applications</h1>
+        <span className="shrink-0 text-[13px] text-muted tabular-nums">
+          {refreshing ? 'Updating' : filtered ? `${visible.length} of ${all.length}` : all.length}
+        </span>
       </header>
 
-      <div className="px-4 pt-3">
-        <input
-          value={filter.q}
-          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
-          placeholder="Find an application"
-          aria-label="Find an application"
-          className="h-11 w-full rounded-control bg-inset px-3 text-[15px] outline-none placeholder:text-muted-tint focus:bg-raised"
+      <div className="px-4">
+        <FleetCounters
+          counts={counts}
+          active={filter.state}
+          onPick={(state) => setFilter({ ...filter, state })}
         />
+      </div>
+
+      <div className="px-4 pt-2">
+        <div className="relative">
+          <Search
+            size={17}
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+            aria-hidden="true"
+          />
+          <input
+            value={filter.q}
+            onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+            placeholder="Find an application"
+            aria-label="Find an application"
+            className="h-11 w-full rounded-control bg-panel pr-3 pl-9 text-[15px] outline-none placeholder:text-muted focus:bg-raised"
+          />
+        </div>
         {(instances.data ?? []).length > 1 && (
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-2 flex gap-2 overflow-x-auto">
             {(instances.data ?? []).map((i) => {
               const on = filter.instance === i.name
               return (
                 <button
                   key={i.name}
-                  onClick={() =>
-                    setFilter({ ...filter, instance: on ? '' : i.name })
-                  }
+                  onClick={() => setFilter({ ...filter, instance: on ? '' : i.name })}
                   aria-pressed={on}
-                  className={`flex h-11 shrink-0 items-center gap-2 rounded-pill px-3 text-[14px] ${
-                    on ? 'bg-raised text-text' : 'text-muted'
-                  }`}
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-control px-3 text-[14px]"
+                  style={{
+                    background: on ? tint(i.color, 20) : 'var(--color-panel)',
+                    boxShadow: `inset 0 0 0 1px ${on ? tint(i.color, 55) : 'var(--color-rule)'}`,
+                    color: on ? 'var(--color-text)' : 'var(--color-muted)',
+                  }}
                 >
                   <span
-                    className="size-2 rounded-full"
-                    style={{ background: i.color, opacity: on ? 1 : 0.55 }}
+                    className="size-2.5 rounded-full"
+                    style={{ background: i.color, opacity: on ? 1 : 0.6 }}
                   />
                   {i.name}
                 </button>
@@ -105,7 +117,7 @@ export function Apps() {
       {(apps.data?.errors ?? []).map((e) => (
         <p
           key={e.instance}
-          className="mx-4 mt-3 rounded-pill bg-surface-degraded px-3 py-2.5 text-[13px] leading-snug"
+          className="mx-4 mt-3 rounded-card bg-surface-degraded px-3 py-2.5 text-[13px] leading-snug"
         >
           <strong className="font-semibold">{e.instance}</strong> did not answer: {e.message}.
           Applications from the other instances are still listed.
@@ -113,13 +125,13 @@ export function Apps() {
       ))}
 
       {apps.isError && (
-        <div className="mx-4 mt-3 rounded-pill bg-surface-degraded px-3 py-2.5 text-[13px] leading-snug">
+        <div className="mx-4 mt-3 rounded-card bg-surface-degraded px-3 py-2.5 text-[13px] leading-snug">
           <p>MazeCD could not load the fleet. Pull down to try again.</p>
           <p className="t-mono mt-1 text-[12px] text-muted-tint">{String(apps.error)}</p>
         </div>
       )}
 
-      <div className="mt-3 flex flex-col gap-0.5 pb-2">
+      <div className="mt-2 flex flex-col gap-1.5 px-4 pb-2">
         {visible.map((a) => (
           <AppRow key={`${a.instance}/${a.name}`} app={a} color={colors[a.instance] ?? '#7E8C9A'} />
         ))}

@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { ResourceNode } from '../api/types'
-import { surfaceOf, bucketOf, healthLoud } from '../lib/fleet'
-import { healthColor } from '../lib/status'
+import { healthLoud } from '../lib/fleet'
+import { stateStyle } from '../lib/status'
+import { KindIcon, tint } from './ui'
 
 type TreeNode = ResourceNode & { children: TreeNode[] }
 
@@ -30,72 +32,65 @@ function build(nodes: ResourceNode[]): TreeNode[] {
  * in blank padding: a CronJob → Job → Pod chain stays legible three deep and
  * the name still owns the rest of the width.
  *
- * The kind sits above the name as a small muted label instead of holding a
- * fixed column beside it, because the names are what the eye is hunting for
- * and `inventory-db-f4f8899b6-x2k9v` needs every pixel.
+ * Each row leads with its kind's glyph, tinted by the resource's own health,
+ * so the shape of the tree is read before a single word of it. One line per
+ * resource: the kind moved onto the name's line as a small muted word, which
+ * halved every row and put the whole of a nine-resource tree on one screen.
+ *
+ * A troubled resource is marked with its status icon alone, not a worded
+ * badge. The row is already tinted and its glyph already carries the colour;
+ * a second `Degraded` in words was stealing thirty characters from pod names
+ * that are the reason anyone opened this screen.
  */
 export function Tree({
   nodes,
   onSelect,
-  selection = [],
-  onToggleSelect,
 }: {
   nodes: ResourceNode[]
   onSelect: (n: ResourceNode) => void
-  selection?: ResourceNode[]
-  onToggleSelect?: (n: ResourceNode) => void
 }) {
   const roots = useMemo(() => build(nodes), [nodes])
 
   const render = (n: TreeNode, depth: number) => {
     const health = n.health?.status ?? ''
-    const bucket = bucketOf({ health, sync: '' })
+    const loud = health !== '' && healthLoud(health)
+    const s = stateStyle(loud ? health : 'Healthy')
+    const StatusIcon = s.icon
     return (
       <div key={`${n.group ?? ''}/${n.kind}/${n.namespace}/${n.name}`}>
-        {/* The checkbox and the open button are siblings, not nested: a
-            <button> may not contain interactive content like a checkbox. */}
-        <div className="flex items-stretch pl-3">
+        <div className="flex items-stretch pl-4">
           {Array.from({ length: depth }, (_, i) => (
             <span key={i} className="w-3.5 shrink-0 border-l border-rule" />
           ))}
-          {onToggleSelect && (
-            <label className="flex size-11 shrink-0 items-center justify-center">
-              <input
-                type="checkbox"
-                checked={selection.some(
-                  (s) => s.kind === n.kind && s.name === n.name && s.namespace === n.namespace,
-                )}
-                onChange={() => onToggleSelect(n)}
-                className="size-5 accent-[#e8eef4]"
-                aria-label={`Select ${n.name} for sync`}
-              />
-            </label>
-          )}
           <button
             onClick={() => onSelect(n)}
-            className={`relative min-h-11 min-w-0 flex-1 py-2.5 pr-4 pl-2.5 text-left ${surfaceOf(bucket)}`}
+            className={`my-px flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-card px-2 text-left ${
+              loud
+                ? 'bg-surface-degraded ring-1 ring-degraded/25'
+                : 'bg-panel active:bg-raised'
+            }`}
           >
-            {/* A resource has one state, so its gutter has one segment; a
-                healthy resource shows none at all. An empty health is an
-                absence rather than a state — ArgoCD assesses only some kinds
-                — so it draws nothing either. */}
-            {health !== '' && healthLoud(health) && (
-              <span className="gutter" aria-hidden="true">
-                {health === 'Progressing' ? (
-                  <span className="sweep" />
-                ) : (
-                  <span style={{ background: healthColor(health) }} />
-                )}
+            <span
+              className="flex size-7 shrink-0 items-center justify-center rounded-control"
+              style={{
+                background: tint(loud ? s.color : 'var(--color-muted)', loud ? 20 : 12),
+                color: loud ? s.color : 'var(--color-muted)',
+              }}
+              aria-hidden="true"
+            >
+              <KindIcon kind={n.kind} size={15} />
+            </span>
+            <span className="min-w-0 flex-1 truncate">
+              <span className="t-name text-[14px]">{n.name}</span>
+              <span className="ml-1.5 text-[11px] text-muted">{n.kind}</span>
+            </span>
+            {loud && (
+              <span className="shrink-0" style={{ color: s.color }}>
+                <span className="sr-only">{s.label}</span>
+                <StatusIcon size={16} strokeWidth={2.4} aria-hidden="true" />
               </span>
             )}
-            <span
-              className={`block text-[11px] leading-[14px] ${
-                bucket === 'Healthy' ? 'text-muted' : 'text-muted-tint'
-              }`}
-            >
-              {n.kind}
-            </span>
-            <span className="t-name block text-[15px]">{n.name}</span>
+            <ChevronRight size={15} className="shrink-0 text-muted" aria-hidden="true" />
           </button>
         </div>
         {n.children.map((c) => render(c, depth + 1))}
@@ -106,12 +101,12 @@ export function Tree({
   if (nodes.length === 0) {
     return (
       <p className="px-8 py-12 text-center text-[15px] leading-relaxed text-muted">
-        ArgoCD reports no resources for this application. If it was just created, sync it to
-        create them.
+        ArgoCD reports no resources for this application. If it was just created, it has not been
+        synced yet.
       </p>
     )
   }
-  return <div className="py-1">{roots.map((n) => render(n, 0))}</div>
+  return <div className="pt-1 pr-4 pb-2">{roots.map((n) => render(n, 0))}</div>
 }
 
 // Exported so the pure tree-building logic can be unit tested directly.

@@ -1,61 +1,48 @@
 import { Link } from 'react-router-dom'
 import type { App } from '../api/types'
-import { InstancePill, Revision, StatusGutter } from './ui'
-import { bucketOf, surfaceOf, tinted, type Bucket } from '../lib/fleet'
+import { InstancePill, Revision, StatusBadge } from './ui'
+import { bucketOf, surfaceOf, tinted } from '../lib/fleet'
 
 /**
- * A tinted row always says why, in words, on a third line. That is the rule
- * the colour-blind reading of this list depends on: amber against green is
- * exactly the pairing that collapses, so being out of sync is carried by a
- * sentence and by the row's height, not by its hue.
+ * One application, one card, every fact exactly once.
  *
- * The list endpoint carries no health message — only health, sync and the
- * last operation phase — so a degraded row says the most specific true thing
- * those three support. The detail screen has the real message from ArgoCD.
+ * The badge is the bucket, not the raw health field, so it matches the
+ * counter chip that filtered the list to this card: an application that is
+ * both degraded and out of sync is counted once, badged once, and the detail
+ * screen is where both states are spelled out.
+ *
+ * The third line is ArgoCD's own `status.health.message` and nothing else. A
+ * card with no message from ArgoCD stays two lines rather than printing a
+ * sentence that only restates the badge.
+ *
+ * The namespace is dropped when it repeats the application name, which is
+ * the common case for a chart deployed into its own namespace. Printing the
+ * name twice on one card is exactly what this rebuild set out to stop.
  */
-function why(app: App, bucket: Bucket): string | null {
-  if (bucket === 'OutOfSync') return 'Out of sync with git.'
-  if (bucket !== 'Degraded') return null
-  if (app.operationPhase === 'Failed' || app.operationPhase === 'Error')
-    return 'Last sync failed. Open for the reason.'
-  if (app.operationPhase === 'Terminating') return 'Sync is being terminated.'
-  if (app.health === 'Missing') return 'Resources are missing from the cluster.'
-  return 'ArgoCD reports this application unhealthy.'
-}
-
 export function AppRow({ app, color }: { app: App; color: string }) {
   const bucket = bucketOf(app)
-  const busy = app.operationPhase === 'Running'
   const muted = tinted(bucket) ? 'text-muted-tint' : 'text-muted'
-  const line = why(app, bucket)
+  const ns = app.destNamespace || app.project
+  const where = ns === app.name ? '' : ns
   return (
     <Link
       to={`/apps/${encodeURIComponent(app.instance)}/${encodeURIComponent(app.name)}`}
-      className={`relative block py-3 pr-4 pl-5 ${surfaceOf(bucket)}`}
+      className={`block rounded-card px-3 py-2 ${surfaceOf(bucket)}`}
     >
-      <StatusGutter health={app.health} sync={app.sync} />
-      <span className="sr-only">
-        {app.health || 'Unknown'} health, {app.sync || 'Unknown'} sync.{' '}
-      </span>
-      <h2 className="t-name text-[22px]">{app.name}</h2>
-      <div className="mt-1 flex items-center gap-2">
+      <h2 className="t-name truncate text-[16px]">{app.name}</h2>
+      <div className="mt-1 flex items-center gap-1.5">
+        <StatusBadge state={bucket} size="sm" />
         <InstancePill name={app.instance} color={color} />
-        <span className={`min-w-0 flex-1 truncate text-[13px] ${muted}`}>
-          {app.destNamespace || app.project}
-        </span>
-        {busy ? (
-          <span className="shrink-0 text-[12px] text-progressing">Syncing</span>
-        ) : (
-          <Revision sha={app.revision} className={muted} />
-        )}
+        <span className={`min-w-0 flex-1 truncate text-[12px] ${muted}`}>{where}</span>
+        <Revision sha={app.revision} className={muted} />
       </div>
-      {line && (
+      {app.healthMessage && (
         <p
-          className={`mt-1 text-[13px] leading-snug ${
+          className={`mt-1 line-clamp-2 text-[13px] leading-snug ${
             bucket === 'Degraded' ? 'text-text-degraded' : 'text-muted-tint'
           }`}
         >
-          {line}
+          {app.healthMessage}
         </p>
       )}
     </Link>

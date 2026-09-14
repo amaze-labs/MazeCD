@@ -1,32 +1,29 @@
 import type { Bucket } from '../lib/fleet'
+import { stateStyle } from '../lib/status'
+import { tint } from './ui'
+
+/** Read order is triage order. */
+const ORDER: Bucket[] = ['Degraded', 'OutOfSync', 'Progressing', 'Suspended', 'Unknown', 'Healthy']
 
 /**
- * Read order is triage order, and every bucket carries ArgoCD's own colour
- * for that state — including suspended and unknown, which exist here so that
- * an application in either can be seen and counted rather than quietly
- * swelling the healthy segment.
- */
-const SEGMENTS: { key: Bucket; word: string; color: string }[] = [
-  { key: 'Degraded', word: 'degraded', color: 'var(--color-degraded)' },
-  { key: 'OutOfSync', word: 'out of sync', color: 'var(--color-outofsync)' },
-  { key: 'Progressing', word: 'progressing', color: 'var(--color-progressing)' },
-  { key: 'Suspended', word: 'suspended', color: 'var(--color-suspended)' },
-  { key: 'Unknown', word: 'of unknown health', color: 'var(--color-unknown)' },
-  { key: 'Healthy', word: 'healthy', color: 'var(--color-healthy)' },
-]
-
-/**
- * The shape of the fleet, before a single row is read: one full-bleed bar,
- * segmented by proportion, doubling as the filter.
+ * The shape of the fleet, in numbers that cannot lie.
  *
- * The proportion is deliberately not exact. A segment carries a 44px
- * flex-basis and grows from there, so two degraded applications out of
- * ninety-nine occupy about 50px instead of the eight they are owed — below
- * that they are neither tappable nor visible, which would defeat the whole
- * point of the bar. Everything above the basis is honest. Empty buckets are
- * not drawn at all, so a normal fleet shows two or three segments, not six.
+ * This replaces a proportional bar whose 44px minimum segment width drew two
+ * degraded applications the same width as ninety-four healthy ones — it
+ * reported "six equal problems" when the truth was "ninety-seven fine, two on
+ * fire". A count has no minimum width to distort: 2 is 2 next to 94.
+ *
+ * Empty buckets are not drawn, so an untroubled fleet is one green chip
+ * rather than six chips of zeroes, and each chip filters the list to itself.
+ *
+ * The row wraps rather than scrolls. Six chips cannot fit 393px, and a
+ * horizontal scroller put `91 healthy` — the number that makes the other
+ * five mean something — off the right-hand edge, which is the same mistake
+ * the fleet bar made in a different costume. The number leads at full size
+ * and the word follows at 11px, which is what gets six chips onto two rows
+ * instead of three without dropping a word anybody needs to read.
  */
-export function FleetBar({
+export function FleetCounters({
   counts,
   active,
   onPick,
@@ -35,32 +32,31 @@ export function FleetBar({
   active: Bucket | ''
   onPick: (b: Bucket | '') => void
 }) {
-  const total = SEGMENTS.reduce((n, s) => n + counts[s.key], 0)
-  if (total === 0) return <div className="h-11" />
+  const shown = ORDER.filter((b) => counts[b] > 0)
+  if (shown.length === 0) return null
 
   return (
-    <div className="flex h-11 items-end gap-0.5" role="group" aria-label="Filter by fleet state">
-      {SEGMENTS.filter((s) => counts[s.key] > 0).map((s) => {
-        const on = active === s.key
-        const dim = active !== '' && !on
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by fleet state">
+      {shown.map((b) => {
+        const s = stateStyle(b)
+        const Icon = s.icon
+        const on = active === b
         return (
           <button
-            key={s.key}
+            key={b}
             type="button"
             aria-pressed={on}
-            aria-label={`${counts[s.key]} ${s.word}`}
-            onClick={() => onPick(on ? '' : s.key)}
-            style={{ flex: `${counts[s.key]} 1 44px` }}
-            className="flex h-11 items-end"
+            onClick={() => onPick(on ? '' : b)}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-pill px-2.5 text-[13px]"
+            style={{
+              background: tint(s.color, on ? 26 : 12),
+              boxShadow: `inset 0 0 0 ${on ? 1.5 : 1}px ${tint(s.color, on ? 70 : 26)}`,
+              color: s.color,
+            }}
           >
-            <span
-              className="w-full"
-              style={{
-                background: s.color,
-                height: on ? 10 : 6,
-                opacity: dim ? 0.3 : 1,
-              }}
-            />
+            <Icon size={14} strokeWidth={2.2} className={s.spin ? 'spin' : ''} aria-hidden="true" />
+            <span className="font-semibold tabular-nums">{counts[b]}</span>
+            <span className="text-[11px] opacity-85">{s.label.toLowerCase()}</span>
           </button>
         )
       })}
