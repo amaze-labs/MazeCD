@@ -1,0 +1,22 @@
+# MazeCD configuration for the dev harness (dev/shoot.mjs). Points at
+# dev/stubargo, which serves three fixture ArgoCD instances on localhost --
+# never a real cluster. The token is a placeholder: the stub accepts any
+# bearer token.
+listen: "127.0.0.1:8080"
+
+instances:
+  - name: home
+    url: http://127.0.0.1:9081
+    token: stub-dev-token
+    color: "#3b82f6"
+
+  - name: orders
+    url: http://127.0.0.1:9082
+    token: stub-dev-token
+    color: "#22c55e"
+    production: true
+
+  - name: utility
+    url: http://127.0.0.1:9083
+    token: stub-dev-token
+    color: "#f59e0b"
