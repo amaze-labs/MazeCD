@@ -6,7 +6,7 @@ import sharp from 'sharp'
 
 const pub = path.resolve(fileURLToPath(new URL('../public', import.meta.url)))
 const src = path.join(pub, 'favicon.svg')
-const INK = { r: 0x0a, g: 0x0f, b: 0x14, alpha: 1 }
+const INK = { r: 0x0e, g: 0x13, b: 0x22, alpha: 1 }
 
 const render = (size) => sharp(src).resize(size, size)
 const write = (img, name) => img.png().toFile(path.join(pub, name))

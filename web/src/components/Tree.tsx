@@ -32,15 +32,18 @@ function build(nodes: ResourceNode[]): TreeNode[] {
  * in blank padding: a CronJob → Job → Pod chain stays legible three deep and
  * the name still owns the rest of the width.
  *
- * Each row leads with its kind's glyph, tinted by the resource's own health,
- * so the shape of the tree is read before a single word of it. One line per
+ * Each row leads with its kind's glyph in an outlined tile — the same mark
+ * the application rows lead with — coloured by the resource's own health, so
+ * the shape of the tree is read before a single word of it. One line per
  * resource: the kind moved onto the name's line as a small muted word, which
  * halved every row and put the whole of a nine-resource tree on one screen.
  *
  * A troubled resource is marked with its status icon alone, not a worded
- * badge. The row is already tinted and its glyph already carries the colour;
- * a second `Degraded` in words was stealing thirty characters from pod names
- * that are the reason anyone opened this screen.
+ * badge: its glyph already carries the colour, and a second `Degraded` in
+ * words was stealing thirty characters from pod names that are the reason
+ * anyone opened this screen. It is drawn with a coloured edge rather than a
+ * red slab — nine rows of which, in a nine-resource tree, was most of the
+ * screen.
  */
 export function Tree({
   nodes,
@@ -65,15 +68,16 @@ export function Tree({
           <button
             onClick={() => onSelect(n)}
             className={`my-px flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-card px-2 text-left ${
-              loud
-                ? 'bg-surface-degraded ring-1 ring-degraded/25'
-                : 'bg-panel active:bg-raised'
+              loud ? 'bg-panel ring-1 ring-degraded/60' : 'bg-panel active:bg-raised'
             }`}
           >
             <span
-              className="flex size-7 shrink-0 items-center justify-center rounded-control"
+              className="flex size-7 shrink-0 items-center justify-center rounded-tile"
               style={{
-                background: tint(loud ? s.color : 'var(--color-muted)', loud ? 20 : 12),
+                boxShadow: `inset 0 0 0 1px ${tint(
+                  loud ? s.color : 'var(--color-rule)',
+                  'var(--tint-outline)',
+                )}`,
                 color: loud ? s.color : 'var(--color-muted)',
               }}
               aria-hidden="true"

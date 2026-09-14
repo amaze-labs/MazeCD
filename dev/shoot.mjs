@@ -64,15 +64,20 @@ async function shootTheme(theme) {
   await page.waitForTimeout(150)
   await shot('02-apps-list-degraded-row.png')
 
-  // The legend: what the two numeric columns on a row mean, in the one place
-  // a thumb can open it. This is the fact that used to live in a `title`.
+  // A counter chip doing its job. This replaces the legend shot: the ⓘ that
+  // explained the two numeric columns is gone, because the columns are now
+  // named in a header row above the list, which 01 already photographs.
+  // What has no other picture is a *filtering* chip — the one control in the
+  // product whose on and off states are told apart by the weight of an
+  // outline rather than by a fill, which is exactly the change this pass is
+  // about and exactly the kind of state this harness exists to prove.
   await page.goto(base)
   await page.getByRole('heading', { name: 'Applications' }).waitFor()
-  await page.getByRole('button', { name: 'What the numbers on a row mean' }).click()
-  await page.getByRole('tooltip').waitFor()
+  await page.getByRole('button', { name: /degraded/i }).click()
   await page.waitForTimeout(250)
-  await shot('03-apps-list-legend.png')
-  await page.keyboard.press('Escape')
+  await shot('03-apps-list-filtered.png')
+  await page.getByRole('button', { name: /degraded/i }).click()
+  await page.waitForTimeout(150)
 
   await degradedRow.click()
   await page.waitForURL(/\/apps\//)

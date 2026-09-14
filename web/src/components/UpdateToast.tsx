@@ -38,7 +38,7 @@ export function UpdateToast() {
       <span className="flex-1 text-[14px] leading-snug">A newer build of MazeCD is ready.</span>
       <button
         onClick={apply}
-        className="flex h-11 shrink-0 items-center justify-center rounded-control bg-text px-4 text-[14px] font-semibold text-ink"
+        className="flex h-11 shrink-0 items-center justify-center rounded-control bg-accent px-4 text-[14px] font-semibold text-ink"
       >
         Reload
       </button>

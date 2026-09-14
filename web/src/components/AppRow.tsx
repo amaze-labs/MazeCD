@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { TriangleAlert } from 'lucide-react'
 import type { App } from '../api/types'
-import { InstancePill, Revision, tint } from './ui'
+import { InstancePill, Revision, RowMark, tint } from './ui'
 import { bucketOf, surfaceOf, tinted } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
 import { ago } from '../lib/ago'
@@ -12,13 +12,26 @@ import { ago } from '../lib/ago'
  * column instead of reading every row whole.
  *
  *   ┌──────┬────────────────────────────────┬──────┐
- *   │  4m  │ photo-library-ml                      │   14 │
- *   │      │ ⚠ Degraded  home  ledger  0af…│  ⚠ 2 │
+ *   │  4m  │ ⚠ photo-library-ml                    │   14 │
+ *   │      │ Degraded  home  ledger   0af… │  ⚠ 2 │
  *   ├──────┼────────────────────────────────┼──────┤
- *   │  25d │ dns-filter                   │   17 │
+ *   │  25d │ ▫ dns-filter                 │   17 │
  *   │      │ home                    d7d4947│      │
  *   └──────┴────────────────────────────────┴──────┘
- *     age            name / meta             resources
+ *    LAST OP        APPLICATION              RES
+ *
+ * The three tracks are named once, in a header row above the list, rather
+ * than ninety-nine times on the rows or once behind an ⓘ in the header. That
+ * is where the numbers got their names back, and it is why the ⓘ is gone.
+ *
+ * Each row opens with the mark — a small outlined tile, silent and grey on a
+ * resting application, carrying the state's glyph in the state's colour when
+ * there is something to report. It sits at the head of the name rather than
+ * in a fourth track because a track costs 30px of every application name on a
+ * 393px screen, and because the state icon was already on this row: it has
+ * moved from the middle of the meta line up to the front, where the eye
+ * starts. The meta line keeps the *word*, which is the half that carries to
+ * someone who cannot see the colour.
  *
  * **The age is the largest thing on the row — on the rows where it means
  * something.** On a broken application it is the fact that separates "this
@@ -56,9 +69,7 @@ import { ago } from '../lib/ago'
  * The border carries state, the way `.treno.parte` does on the board this is
  * modelled after: every card reserves the same 1px so nothing changes height
  * when a state arrives, and only its colour moves. The state *word* stays,
- * because colour alone is not information for everyone — but it is now flat
- * text beside its icon rather than a filled pill, since a filled pill inside
- * a card that is already outlined in the same colour says one thing twice.
+ * because colour alone is not information for everyone.
  *
  * The resting application still says nothing it does not have to: no state
  * word, no unhealthy count, no health message. It carries twice the facts it
@@ -67,7 +78,6 @@ import { ago } from '../lib/ago'
 export function AppRow({ app, color }: { app: App; color: string }) {
   const bucket = bucketOf(app)
   const state = stateStyle(bucket)
-  const Icon = state.icon
   const muted = tinted(bucket) ? 'text-muted-tint' : 'text-muted'
   const resting = bucket === 'Healthy' && app.sync === 'Synced'
   const when = ago(app.operationFinishedAt)
@@ -98,11 +108,9 @@ export function AppRow({ app, color }: { app: App; color: string }) {
       {when ? (
         <time
           dateTime={app.operationFinishedAt}
-          // What this number *is* now lives where a thumb can get at it: the
-          // legend behind the ⓘ in the list header, which explains both
-          // numeric columns once instead of ninety-nine times. The title
-          // stays for a pointer, and the aria-label is what a screen reader
-          // says in place of "1d".
+          // What this number *is* is written at the top of its own column,
+          // once, in the list's header row. The title stays for a pointer,
+          // and the aria-label is what a screen reader says in place of "1d".
           title={`last operation finished ${when.long}`}
           aria-label={`last operation finished ${when.long}`}
           className={`col-start-1 row-span-2 text-right leading-none tabular-nums ${
@@ -120,15 +128,14 @@ export function AppRow({ app, color }: { app: App; color: string }) {
         </span>
       )}
 
-      <h2 className="t-name col-start-2 row-start-1 truncate text-[15px]">{app.name}</h2>
+      <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5">
+        <RowMark state={bucket} resting={resting} />
+        <h2 className="t-name min-w-0 flex-1 truncate text-[15px]">{app.name}</h2>
+      </div>
 
       <div className="col-start-2 row-start-2 mt-0.5 flex min-w-0 items-center gap-1.5">
         {!resting && (
-          <span
-            className="flex shrink-0 items-center gap-1 text-[12px] font-medium"
-            style={{ color: state.color }}
-          >
-            <Icon size={13} strokeWidth={2.4} className={state.spin ? 'spin' : ''} aria-hidden="true" />
+          <span className="shrink-0 text-[12px] font-medium" style={{ color: state.color }}>
             {state.label}
           </span>
         )}

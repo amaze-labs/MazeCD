@@ -1,31 +1,53 @@
 import type { ReactNode } from 'react'
+import { Box } from 'lucide-react'
 import { kindIcon, stateStyle } from '../lib/status'
 
 /**
  * The vocabulary the whole interface is built from.
  *
- * One idea carries it: state is a filled badge — icon, word, ArgoCD's colour —
- * never a stripe and never colour alone. A three-pixel gutter clipped against
- * the edge of a phone was unreadable and looked like a rendering artefact; a
- * badge survives a glance, a screenshot, and colour blindness.
+ * One idea carries it: state is an **outlined** badge — a coloured 1px edge,
+ * a coloured icon, coloured text, and nothing behind it. Never a stripe, never
+ * colour alone, and, since v6, never a filled block either.
+ *
+ * The fills went because the screen was a field of coloured rectangles: a
+ * badge, an instance pill and a counter chip were each a small slab of tinted
+ * paint, and thirty of them down a list is a poster, not an instrument. An
+ * outline says exactly as much — it is the same icon, the same word and the
+ * same colour — and it says it without claiming a rectangle of the page.
+ *
+ * It is also more legible, not less. A badge's own text used to sit inside a
+ * wash made of itself, which was the worst of the three contrast cases in
+ * this design and the one that forced every light-theme status colour darker
+ * than it wanted to be. Outlined, the text sits on the card: the same six
+ * colours read a full point higher.
+ *
+ * What still gets a fill, and why:
+ *   - a card, a sheet, a toast and a tooltip — an object that has to occlude
+ *     what is behind it is a surface, not a decoration;
+ *   - the two card grounds for Degraded and Out of sync, which are the only
+ *     tinted surfaces left, at a whisper of their old strength (see the
+ *     tokens in index.css);
+ *   - the one `strong` button a screen is *about*, which is the single place
+ *     the accent is allowed to be a shape rather than a line;
+ *   - a skeleton bar, whose entire job is to be seen.
  */
 
 /**
  * A colour at a fraction of itself, over whatever is behind it.
  *
- * `percent` takes a CSS custom property as well as a number, because several
- * of these fractions are not constants: a 26% wash of a light colour on a
- * dark ground and a 26% wash of a dark colour on paper are not the same
- * amount of ink, and the second one swallows the text that sits in it. Those
- * call sites pass `'var(--tint-fill)'` and the stylesheet answers per theme.
+ * `percent` takes a CSS custom property as well as a number, because these
+ * fractions are not constants: 65% of a light colour over a dark ground and
+ * 65% of a dark colour over paper are not the same amount of edge. Those call
+ * sites pass `'var(--tint-outline)'` and the stylesheet answers per theme.
  */
 export const tint = (color: string, percent: number | string) =>
   `color-mix(in oklab, ${color} ${typeof percent === 'number' ? `${percent}%` : percent}, transparent)`
 
 /**
- * A state, said out loud. `size="sm"` is the same badge for places that are
- * already dense — the resource tree, a sheet header — and drops the word to a
- * smaller face rather than dropping it altogether.
+ * A state, said out loud: a coloured edge, a coloured glyph, a coloured word,
+ * and the card showing through. `size="sm"` is the same badge for places that
+ * are already dense — the resource tree, a sheet header — and drops the word
+ * to a smaller face rather than dropping it altogether.
  */
 export function StatusBadge({
   state,
@@ -45,12 +67,9 @@ export function StatusBadge({
         size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-2.5 text-[13px]'
       }`}
       style={{
-        // 12% on a dark ground, 10% on paper: a heavier fill lifts the
-        // badge's own background far enough that the badge's own text drops
-        // under 4.5:1 -- #e96d76 in the dark, every one of the six in the
-        // light, where the ink is dark and the wash darkens fast.
-        background: tint(s.color, 'var(--tint-fill)'),
-        boxShadow: `inset 0 0 0 1px ${tint(s.color, 'var(--tint-edge)')}`,
+        // The edge, and nothing else. An inset shadow rather than a border so
+        // the badge's height is the same whether or not anything draws one.
+        boxShadow: `inset 0 0 0 1px ${tint(s.color, 'var(--tint-outline)')}`,
         color: s.color,
       }}
     >
@@ -61,22 +80,102 @@ export function StatusBadge({
 }
 
 /**
- * The instance, as a small pill tinted with the instance's own colour. The
+ * The instance, as a small outlined pill in the instance's own colour. The
  * colour lives here — six characters wide, in a place where nothing is at
  * stake — instead of on a thick bar down the edge of the row, where a red
  * theme made a healthy application look like a fire.
+ *
+ * This was the most-repeated fill in the product: one on every row, one on
+ * every card in Settings, one in every sheet. An operator's own instance
+ * colours are arbitrary — they are whatever the configuration file says — so
+ * a solid block of one was the least meaningful paint on the screen.
+ *
+ * The word keeps its blend toward the text colour rather than taking the raw
+ * instance colour: a configuration file is free to name an instance `#3b3b3b`
+ * or a neon yellow, and the pill has to stay readable either way. The edge
+ * takes the colour straight, where an unreadable value costs nothing.
  */
 export function InstancePill({ name, color }: { name: string; color: string }) {
   return (
     <span
       className="inline-flex h-6 shrink-0 items-center rounded-pill px-2 text-[12px] font-medium"
       style={{
-        background: tint(color, 18),
+        boxShadow: `inset 0 0 0 1px ${tint(color, 'var(--tint-outline)')}`,
         color: `color-mix(in oklab, ${color} 45%, var(--color-text))`,
       }}
     >
       {name}
     </span>
+  )
+}
+
+/**
+ * The anchor at the start of a row: a small outlined tile holding one glyph.
+ *
+ * Every list in this product was a wall of text starting at the same x with
+ * nothing for the eye to catch on. The tile is that catch — and because it is
+ * *the first thing on the row*, it is also the only place a state can be seen
+ * without reading anything.
+ *
+ * It obeys the rule the rest of the list obeys: **a resting application says
+ * nothing**. At rest the tile is a plain box glyph in the rule colour, which
+ * means "an application" and no more. Only when the row has something to
+ * report does it take the state's glyph and the state's colour — and then it
+ * is the loudest mark on the row, at its leading edge.
+ *
+ * Outlined, not the reference's tinted square: ninety-nine tinted squares is
+ * the field of rectangles this pass exists to remove, and a tinted square in
+ * the *accent* — which is what the reference does — would spend the product's
+ * one colour ninety-nine times per screen on a decoration.
+ */
+export function RowMark({ state, resting }: { state: string; resting: boolean }) {
+  const s = stateStyle(state)
+  const Icon = resting ? Box : s.icon
+  // At rest the edge is the rule colour at full strength — the faintest token
+  // there is — and a fraction of it would have disappeared on paper. A state
+  // colour is a strong colour, so it is taken at the outline fraction like
+  // every other chip.
+  const color = resting ? 'var(--color-rule)' : s.color
+  return (
+    <span
+      className="flex size-5 shrink-0 items-center justify-center rounded-tile"
+      style={{
+        boxShadow: `inset 0 0 0 1px ${resting ? color : tint(color, 'var(--tint-outline)')}`,
+        color,
+      }}
+      aria-hidden="true"
+    >
+      <Icon size={12} strokeWidth={2.3} className={!resting && s.spin ? 'spin' : ''} />
+    </span>
+  )
+}
+
+/**
+ * One labelled fact: a small letter-spaced grey capital over its value.
+ *
+ * This is the whole of where the "engineered" reading comes from — data that
+ * is named and aligned, the way a spec sheet names it, rather than figures
+ * standing in columns and an ⓘ in a header apologising for them.
+ *
+ * Stacked, not label-left-value-right as the reference has it. Two columns on
+ * a 393px screen are about 160px each; a 60px label beside the value leaves
+ * 100px for `git@github.com:…`, which truncates almost everything worth
+ * reading. Stacking gives the value the full column and costs 13px a row.
+ *
+ * Renders nothing at all when there is no value. A spec sheet with six
+ * em-dashes in it is not a spec sheet.
+ */
+export function Field({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
+  if (!value) return null
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] leading-[14px] font-semibold tracking-[0.12em] text-muted uppercase">
+        {label}
+      </dt>
+      <dd className={`truncate text-[13px] leading-[17px] ${mono ? 't-mono' : ''}`} title={value}>
+        {value}
+      </dd>
+    </div>
   )
 }
 
@@ -115,7 +214,7 @@ export function Button({
     'inline-flex h-11 select-none items-center justify-center gap-2 rounded-control px-4 text-[15px] font-medium transition-colors disabled:opacity-40'
   const skin =
     tone === 'strong'
-      ? 'bg-text text-ink hover:opacity-90 active:opacity-80 disabled:hover:opacity-100'
+      ? 'bg-accent text-ink hover:opacity-90 active:opacity-80 disabled:hover:opacity-100'
       : 'bg-raised text-text ring-1 ring-rule hover:bg-inset active:bg-inset disabled:hover:bg-raised'
   return <button {...props} className={`${shape} ${skin} ${className}`} />
 }
@@ -128,13 +227,14 @@ const TONE = {
 export type Tone = keyof typeof TONE
 
 /**
- * Something went wrong, said in place — a tinted panel with a stronger border
- * of the same hue, an icon, a sentence, and a way out.
+ * Something went wrong, said in place — an outlined panel in the tone's hue,
+ * with an icon, a sentence, and a way out.
  *
- * A wash plus a border rather than a coloured stripe or a line of red text:
- * the stripe is invisible at the edge of a phone and the bare line is not
- * distinguishable from the content it interrupts. The border is carried at a
- * higher fraction than the fill so the panel has an edge in both themes.
+ * A bordered panel rather than a coloured stripe or a line of red text: the
+ * stripe is invisible at the edge of a phone and the bare line is not
+ * distinguishable from the content it interrupts. It used to carry a wash of
+ * its hue as well; the border alone does the same job, and the panel now sits
+ * on the page instead of painting over it.
  *
  * `action` is not optional decoration. The banner that matters most here is
  * an instance that did not answer — the list is still correct for the other
@@ -157,11 +257,8 @@ export function Callout({
   const c = TONE[tone]
   return (
     <div
-      className="rounded-card px-3 py-2.5"
-      style={{
-        background: tint(c, 'var(--tint-fill)'),
-        boxShadow: `inset 0 0 0 1px ${tint(c, 'var(--tint-edge)')}`,
-      }}
+      className="rounded-card bg-panel px-3 py-2.5"
+      style={{ boxShadow: `inset 0 0 0 1px ${tint(c, 'var(--tint-outline)')}` }}
       role="status"
     >
       <div className="flex items-start gap-2.5">
@@ -170,19 +267,10 @@ export function Callout({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[14px] leading-snug font-semibold">{title}</p>
-          {children && (
-            <div className="mt-1 text-[13px] leading-snug text-muted-tint">{children}</div>
-          )}
+          {children && <div className="mt-1 text-[13px] leading-snug text-muted">{children}</div>}
         </div>
       </div>
-      {/* The action sits on the wash, so it takes the card surface rather
-          than the raised one: a `raised` slab on a tinted panel reads as a
-          piece of another screen that fell in. */}
-      {action && (
-        <div className="mt-2.5 flex gap-2 [&_button]:bg-panel [&_button]:hover:bg-raised">
-          {action}
-        </div>
-      )}
+      {action && <div className="mt-2.5 flex gap-2">{action}</div>}
     </div>
   )
 }
@@ -210,7 +298,7 @@ export function EmptyState({
   return (
     <div className="mx-4 my-6 rounded-card border border-rule bg-panel px-6 py-10 text-center">
       <span
-        className="mx-auto mb-3 flex size-12 items-center justify-center rounded-pill bg-raised text-muted"
+        className="mx-auto mb-3 flex size-12 items-center justify-center rounded-pill text-muted ring-1 ring-rule"
         aria-hidden="true"
       >
         {icon}

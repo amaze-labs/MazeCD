@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'MazeCD',
         short_name: 'MazeCD',
         description: 'Multi-instance ArgoCD control',
-        theme_color: '#0A0F14',
-        background_color: '#0A0F14',
+        theme_color: '#0E1322',
+        background_color: '#0E1322',
         display: 'standalone',
         start_url: '/',
         icons: [

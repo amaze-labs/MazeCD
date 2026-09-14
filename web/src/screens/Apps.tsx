@@ -4,12 +4,11 @@ import { useApps, useInstances } from '../api/queries'
 import { AppRow } from '../components/AppRow'
 import { FleetCounters } from '../components/FleetCounters'
 import { AppListSkeleton } from '../components/Skeleton'
-import { Tooltip } from '../components/Tooltip'
 import { bucketOf, countBy, type Bucket } from '../lib/fleet'
 import { healthRank } from '../lib/status'
 import { usePullToRefresh } from '../lib/pullToRefresh'
 import { toast } from '../lib/toast'
-import { Button, Callout, EmptyState, tint } from '../components/ui'
+import { Button, Callout, EmptyState } from '../components/ui'
 
 type Filter = { instance: string; state: Bucket | ''; q: string }
 
@@ -85,27 +84,6 @@ export function Apps() {
               {refreshing ? 'Updating' : filtered ? `${visible.length} of ${all.length}` : all.length}
             </span>
           )}
-          {/* The row's two numeric columns, explained once for all
-              ninety-nine rows, in a place a thumb can actually open.
-              Ninety-nine copies of this sentence on the rows themselves is
-              the furniture this list exists without; a `title` on each row
-              is the version a phone can never show. */}
-          <Tooltip label="What the numbers on a row mean">
-            <span className="block text-[13px] leading-snug">
-              <span className="block font-semibold text-text">The number on the left</span>
-              <span className="mt-0.5 block text-muted">
-                How long ago ArgoCD last finished an <em className="not-italic text-text">operation</em>{' '}
-                on that application — a sync, a refresh, a rollback. Not how long it has been
-                broken. It is large on the rows that need attention and small on the ones that
-                do not. A dash means ArgoCD has no operation recorded at all.
-              </span>
-              <span className="mt-2 block font-semibold text-text">The number on the right</span>
-              <span className="mt-0.5 block text-muted">
-                How many resources the application has. Under it, in red, how many of them are
-                not healthy.
-              </span>
-            </span>
-          </Tooltip>
         </div>
       </header>
 
@@ -144,10 +122,15 @@ export function Apps() {
                   key={i.name}
                   onClick={() => setFilter({ ...filter, instance: on ? '' : i.name })}
                   aria-pressed={on}
+                  // Outlined either way; what changes is the weight of the
+                  // edge and the colour of the word. The filled version of
+                  // this control was a block of an arbitrary configuration
+                  // colour sitting above the list it was filtering.
                   className="flex h-11 shrink-0 items-center gap-2 rounded-control px-3 text-[14px]"
                   style={{
-                    background: on ? tint(i.color, 20) : 'var(--color-panel)',
-                    boxShadow: `inset 0 0 0 1px ${on ? tint(i.color, 55) : 'var(--color-rule)'}`,
+                    boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${
+                      on ? i.color : 'var(--color-rule)'
+                    }`,
                     color: on ? 'var(--color-text)' : 'var(--color-muted)',
                   }}
                 >
@@ -207,10 +190,41 @@ export function Apps() {
       {/* The shape of the list, before the list. Only on a first load with
           nothing cached: a refresh over applications already on screen must
           not replace them with grey bars. */}
+      {/* The columns, named. Three small letter-spaced capitals on the list's
+          own grid tracks, once, above ninety-nine rows.
+
+          This replaces the ⓘ that used to sit in the header explaining what
+          the two numeric columns were. An ⓘ explaining a column is a label
+          that was not written: it costs a tap, it is invisible until taken,
+          and it admits in the header that the data below is unreadable. A
+          header row costs 14px on arrival, applies to every row at once, and
+          is the device a spec sheet has used for a century.
+
+          What is lost with the ⓘ is one sentence of nuance — that the age is
+          about the last *operation* and not about how long the application
+          has been broken. `LAST OP` says the load-bearing half of that in two
+          words, and the long form survives on each cell's title and
+          aria-label, where a screen reader still reads it.
+
+          It is drawn over the skeleton too. The skeleton's whole contract is
+          that nothing moves when the data lands, and a header row that
+          appears with the first application would push all ninety-nine down
+          by 22px at exactly the moment the eye had settled. */}
+      {(visible.length > 0 || (apps.isLoading && !apps.data)) && (
+        <div
+          aria-hidden="true"
+          className="mt-2.5 grid grid-cols-[3.25rem_minmax(0,1fr)_2.25rem] gap-x-2.5 px-[1.625rem] text-[10px] leading-[14px] font-semibold tracking-[0.14em] text-muted uppercase"
+        >
+          <span className="text-right">Last op</span>
+          <span>Application</span>
+          <span className="text-right">Res</span>
+        </div>
+      )}
+
       {apps.isLoading && !apps.data ? (
         <AppListSkeleton />
       ) : (
-        <div className="mt-2 flex flex-col gap-1.5 px-4 pb-2">
+        <div className="mt-1 flex flex-col gap-1.5 px-4 pb-2">
           {visible.map((a) => (
             <AppRow
               key={`${a.instance}/${a.name}`}

@@ -26,24 +26,61 @@
 }
 
 @theme {
-  /* Surfaces, darkest to lightest. The page sits distinctly below the cards:
-     that gap is what makes a card read as an object rather than as a row in
-     a table, and it is the only thing separating one application from the
-     next — there are no hairlines anywhere in the list. */
-  --color-ink: #05080c;
-  --color-panel: #131c26;
-  --color-raised: #1c2734;
-  --color-inset: #1b2630;
-  --color-rule: #26323f;
-  --color-text: #e8eef4;
-  --color-muted: #7e8c9a;
+  /* The ground is a colour, not the absence of one.
+
+     It was #05080c — near-black, which is what a screen looks like when
+     nobody decided. This is a deep blue-violet slate at hue 228, and every
+     surface above it is the same hue at a higher value, so the steps read as
+     one material lit from different distances rather than as six greys. The
+     page sits distinctly below the cards: that gap is what makes a card read
+     as an object, and it is the only thing separating one application from
+     the next — there are no hairlines anywhere in the list.
+
+     The hue matters for a second reason. Nothing in ArgoCD's palette lives at
+     228 except the progressing blue, and the ground is far too dark to be
+     confused with it; a warm ground would have put the whole interface inside
+     the amber's family. */
+  --color-ink: #0e1322;
+  --color-panel: #1a2036;
+  --color-raised: #242b45;
+  --color-inset: #222941;
+  --color-rule: #313a58;
+  --color-text: #e8ecf7;
+  /* 5.78:1 on a card, 6.64:1 on the page, 5.00:1 on the raised surface —
+     the last of which was 4.39:1 before the ground moved, a miss v5 recorded
+     and could not fix without changing a shipped value. Moving the ground
+     was the licence to fix it. */
+  --color-muted: #919bb2;
   /* Muted text sitting on a state-tinted surface, where plain --color-muted
      falls just under 4.5:1. */
-  --color-muted-tint: #98a5b2;
+  --color-muted-tint: #a3adc2;
+
+  /* MazeCD's own colour, and the only one on screen that is not data.
+
+     Magenta at hue 305. ArgoCD's six states occupy 165, 196, 205, 251, 356
+     and 44 degrees; the two clear gaps in that wheel are the yellow-greens
+     around 100 — which sit between the amber and the healthy green and would
+     be read as one or the other — and the magentas around 300, which are 54
+     degrees from the nearest status (suspended) and 51 from the next
+     (degraded), and far more saturated than either. Nothing in ArgoCD is
+     pink. That is the whole requirement: a colour an operator can never
+     mistake for a state, so it is free to mean "this is the product".
+
+     It appears in four places and nowhere else: the mark on the sign-in
+     screen, the current item in the tab bar, the current tab on a detail
+     screen, and the one button a screen is actually about. It never touches a
+     row, because a row is data.
+
+     The light value is the same hue walked down to 6.38:1 on a white card —
+     the same move the six status colours make, for the same reason. Note that
+     it does not change hue between themes the way TabelloneTreni's accent has
+     to: that accent is amber, and amber in daylight is a severity colour.
+     Magenta is nobody's severity. */
+  --color-accent: #f06ce4;
 
   /* ArgoCD's own status colours. Operators read these as muscle memory, so
-     they are the only saturated colour in the interface: colour means state
-     here and nothing else. */
+     they are the only saturated colour in the interface that carries data:
+     colour means state here and nothing else. */
   --color-healthy: #18be94;
   --color-progressing: #0daeeb;
   --color-degraded: #e96d76;
@@ -53,10 +90,14 @@
   --color-suspended: #9b93bd;
   --color-unknown: #ccd6dd;
 
-  /* Ink shifted toward a status hue. Surfaces, not status colour: white text
-     has to stay comfortably readable on them. */
-  --color-surface-degraded: #2a1216;
-  --color-surface-outofsync: #241d10;
+  /* The two grounds that survived the outlining, and the only tinted
+     surfaces left in the interface. They are much fainter than they were —
+     #2a1216 against a near-black page was a block of colour; against a
+     blue-violet page a red wash also turns mauve, so these are hand-picked
+     rather than mixed, warm enough to read as red and amber beside the
+     panel's 228 and light enough to stay a whisper. */
+  --color-surface-degraded: #261a26;
+  --color-surface-outofsync: #242118;
   --color-text-degraded: #f2b8bd;
 
   /* The sheet scrim and the one shadow this interface owns. Both are
@@ -69,7 +110,7 @@
      only while the sweep crossed them. This is the one surface whose job is
      to be seen, so it gets its own value, about 1.3:1 against its card in
      both themes. */
-  --color-skel: #222e3d;
+  --color-skel: #2c3454;
   /* The sweep that crosses a skeleton: a highlight, so it is white in both
      themes and only its strength changes. */
   --color-shimmer: rgb(255 255 255 / 0.07);
@@ -81,6 +122,7 @@
   --radius-sheet: 18px;
   --radius-card: 14px;
   --radius-control: 12px;
+  --radius-tile: 7px;
   --radius-pill: 999px;
 }
 
@@ -89,60 +131,68 @@
    depends on to hold its contrast — the reason they are variables at all is
    that the same number does not hold in both themes (see the light block).
 
-   --tint-fill     the wash behind a status badge or a resting counter chip
-   --tint-fill-on  the same wash on a counter chip that is filtering
-   --tint-edge     the hairline ring around a badge
+   --tint-outline  the 1px edge of every outlined chip, badge and panel —
+                   which, after v6, is nearly every bordered thing here
    --tint-border   the border of a card whose state is loud but not tinted
    --press         what `active:` does to a tinted card
-   --shadow-card   the only shadow in the interface */
+   --shadow-card   the only shadow in the interface
+
+   What is gone: --tint-fill and --tint-fill-on, the washes behind a badge and
+   behind a filtering counter chip. There are no washes behind those any more.
+   A fraction that nothing multiplies is not a design decision, it is a
+   leftover. */
 :root {
-  --tint-fill: 12%;
-  --tint-fill-on: 26%;
-  --tint-edge: 32%;
+  --tint-outline: 65%;
   --tint-border: 45%;
   --press: 1.14;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-float: 0 10px 30px -12px rgb(0 0 0 / 0.9);
 }
 
-/* Daylight.
+/* Daylight, rebuilt a second time.
 
-   Not the dark theme inverted. Two things had to be rebuilt rather than
-   flipped.
+   Not the dark theme inverted, and not the v5 light theme left standing while
+   the ground moved underneath it. The dark page is now a blue-violet at hue
+   228 instead of a near-black at hue 210, so the paper follows it: #f0f2f9 is
+   the same hue seen from the other end, and every neutral above it — raised,
+   inset, rule, text — is that hue too. A theme whose light half is a cooler
+   or warmer grey than its dark half reads as two products.
 
-   The six status colours. ArgoCD's own values are chosen for a dark console
-   and none of them survives a white card: its amber #f4c030 reads at 1.7:1 on
-   white and its unknown #ccd6dd at 1.4:1 — invisible, not merely weak. Each
-   one is walked down its own hue until it clears 4.5:1 as text on the card
-   *and* on the page ground *and* inside its own 10% badge wash, which is the
-   worst of the three. What that costs is luminance separation: on paper all
-   six land between 6 and 8 against white, so they no longer sort themselves
-   by brightness the way they do on black. The icon and the word were always
-   the information — colour was muscle memory and never the only channel —
-   so they keep carrying it, and the hues stay far enough apart (green, blue,
-   red, brown-amber, violet, slate) to be told apart at a glance.
+   The six status colours keep the values v5 worked out, because the thing
+   they had to survive has not changed: ArgoCD's own colours are chosen for a
+   dark console and none of them survives a white card — its amber #f4c030
+   reads at 1.7:1 on white and its unknown #ccd6dd at 1.4:1, invisible rather
+   than merely weak. Each was walked down its own hue until it cleared 4.5:1
+   as text on the card and on the page ground. They were re-checked against
+   the new paper and all six sit between 6.05 and 6.92 on it. What they no
+   longer have to survive is their own badge wash, which was the worst of the
+   three cases and which v6 deleted: an outlined chip puts its text on the
+   card, not inside a puddle of itself.
 
-   The opacities. A wash of a *light* colour on a dark ground barely moves
-   the ground; a wash of a *dark* colour on a light ground darkens it fast,
-   and the text sitting in that wash is the same dark colour. So the fills
-   come down (12%→10%, and the filtering chip 26%→15%, which would otherwise
-   drop a green chip's own label to 4.2:1) and the strokes go up (32%→45%,
-   45%→62%) to keep an edge visible against paper. And `active:` inverts:
-   brightening a white card does nothing, so a press darkens instead. */
+   The opacities. A wash of a *light* colour on a dark ground barely moves the
+   ground; a stroke of a *dark* colour on a light ground is the opposite
+   problem — 65% of a dark hue over white is still visibly softer than 65% of
+   a light hue over black, so the outline fraction goes up rather than down.
+   And `active:` inverts: brightening a white card does nothing, so a press
+   darkens instead. */
 :root[data-theme='light'] {
   /* Paper below, cards on top of it — the same order as the dark theme, so
      a card still reads as an object. */
-  --color-ink: #eef2f7;
+  --color-ink: #f0f2f9;
   --color-panel: #ffffff;
-  --color-raised: #e3eaf3;
-  --color-inset: #dae3ee;
-  --color-rule: #ccd6e2;
-  --color-text: #101820;
-  --color-muted: #556475;
+  --color-raised: #e4e8f3;
+  --color-inset: #dbe1f0;
+  --color-rule: #ccd3e4;
+  --color-text: #12172b;
+  --color-muted: #555e76;
   /* In the dark theme this is *lighter* than muted, because the tinted
      grounds there are lighter than the page. Here the tinted grounds are
      pale washes and the correction runs the other way: darker, not lighter. */
-  --color-muted-tint: #4e5a68;
+  --color-muted-tint: #4c5468;
+
+  /* The same magenta hue, walked down to 6.38:1 on a white card and 5.71:1
+     on the paper. */
+  --color-accent: #a8189e;
 
   --color-healthy: #046850;
   --color-progressing: #095e93;
@@ -159,21 +209,19 @@
      the same grey as a secondary label. */
   --color-unknown: #475462;
 
-  --color-surface-degraded: #fdeaec;
-  --color-surface-outofsync: #fbf2da;
+  --color-surface-degraded: #fcf1f3;
+  --color-surface-outofsync: #faf4e8;
   --color-text-degraded: #8c2029;
 
-  --color-scrim: rgb(16 24 32 / 0.45);
-  --color-skel: #cfd8e5;
+  --color-scrim: rgb(14 19 34 / 0.45);
+  --color-skel: #d3d9e8;
   --color-shimmer: rgb(255 255 255 / 0.8);
 
-  --tint-fill: 10%;
-  --tint-fill-on: 15%;
-  --tint-edge: 45%;
+  --tint-outline: 72%;
   --tint-border: 62%;
   --press: 0.94;
-  --shadow-card: 0 1px 2px rgb(16 24 32 / 0.08);
-  --shadow-float: 0 12px 32px -12px rgb(16 24 32 / 0.28);
+  --shadow-card: 0 1px 2px rgb(14 19 34 / 0.08);
+  --shadow-float: 0 12px 32px -12px rgb(14 19 34 / 0.28);
 }
 
 html {
@@ -191,7 +239,7 @@ html[data-theme='light'] {
 @media (prefers-color-scheme: light) {
   html:not([data-theme]) {
     color-scheme: light;
-    background: #eef2f7;
+    background: #f0f2f9;
   }
 }
 

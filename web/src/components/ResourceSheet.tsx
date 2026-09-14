@@ -37,7 +37,7 @@ export function ResourceSheet({
         </span>
       </div>
       {node.health?.message && (
-        <p className="mt-2 rounded-card bg-surface-degraded px-3 py-2 text-[13px] leading-snug text-text-degraded">
+        <p className="mt-2 rounded-card px-3 py-2 text-[13px] leading-snug text-degraded ring-1 ring-degraded/45">
           {node.health.message}
         </p>
       )}
@@ -49,7 +49,7 @@ export function ResourceSheet({
             onClick={() => setTab(t)}
             aria-pressed={tab === t}
             className={`flex h-11 items-center rounded-pill px-3.5 text-[14px] ${
-              tab === t ? 'bg-raised text-text' : 'text-muted'
+              tab === t ? 'text-text ring-1 ring-rule' : 'text-muted'
             }`}
           >
             {t}
@@ -108,14 +108,14 @@ function Logs({ instance, app, node }: { instance: string; app: string; node: Re
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          className="t-mono h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:font-sans placeholder:text-muted-tint focus:bg-raised"
+          className="t-mono h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:font-sans placeholder:text-muted focus:bg-raised"
         />
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter lines"
           aria-label="Filter lines"
-          className="h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:text-muted-tint focus:bg-raised"
+          className="h-11 min-w-0 flex-1 rounded-control bg-inset px-3 text-[13px] outline-none placeholder:text-muted focus:bg-raised"
         />
       </div>
       {error && (

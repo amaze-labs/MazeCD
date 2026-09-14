@@ -24,7 +24,13 @@ function AppRowSkeleton({ i }: { i: number }) {
       aria-hidden="true"
     >
       <span className="skel col-start-1 row-span-2 ml-auto h-3.5 w-7" />
-      <span className="skel col-start-2 row-start-1 h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
+      {/* The mark and the name, at the sizes AppRow gives them: the tile is
+          20px and outlined rather than a skeleton bar, because it is the one
+          thing on the row that is already there before the data is. */}
+      <span className="col-start-2 row-start-1 flex items-center gap-2">
+        <span className="size-5 shrink-0 rounded-tile ring-1 ring-rule" />
+        <span className="skel h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
+      </span>
       {/* The meta line is a state word and an instance pill and a revision,
           not one long bar: a single wide block there read as a second title
           and made the skeleton look like a two-line list it is not. */}

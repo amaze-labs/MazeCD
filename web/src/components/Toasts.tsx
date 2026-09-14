@@ -34,7 +34,7 @@ export function Toasts() {
               t.leaving ? 'toast-out' : 'toast-in'
             }`}
             style={{
-              boxShadow: `inset 0 0 0 1px ${tint(color, 'var(--tint-edge)')}, var(--shadow-float)`,
+              boxShadow: `inset 0 0 0 1px ${tint(color, 'var(--tint-outline)')}, var(--shadow-float)`,
             }}
           >
             <span className="mt-px shrink-0" style={{ color }} aria-hidden="true">

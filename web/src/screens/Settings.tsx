@@ -63,7 +63,10 @@ export function Settings() {
               >
                 <span
                   className="flex size-9 shrink-0 items-center justify-center rounded-control"
-                  style={{ background: tint(i.color, 16), color: i.color }}
+                  style={{
+                    boxShadow: `inset 0 0 0 1px ${tint(i.color, 'var(--tint-outline)')}`,
+                    color: i.color,
+                  }}
                   aria-hidden="true"
                 >
                   <Server size={17} strokeWidth={2} />
@@ -72,15 +75,14 @@ export function Settings() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <InstancePill name={i.name} color={i.color} />
                     {i.production && (
-                      <span className="inline-flex h-6 items-center rounded-pill bg-outofsync/15 px-2 text-[12px] font-medium text-outofsync">
+                      <span className="inline-flex h-6 items-center rounded-pill px-2 text-[12px] font-medium text-outofsync ring-1 ring-outofsync/65">
                         production
                       </span>
                     )}
                     <span
                       className="inline-flex h-6 items-center gap-1.5 rounded-pill px-2 text-[12px] font-medium"
                       style={{
-                        background: tint(state.color, 12),
-                        boxShadow: `inset 0 0 0 1px ${tint(state.color, 32)}`,
+                        boxShadow: `inset 0 0 0 1px ${tint(state.color, 'var(--tint-outline)')}`,
                         color: state.color,
                       }}
                     >
@@ -132,7 +134,7 @@ export function Settings() {
                 aria-pressed={on}
                 onClick={() => setTheme(value)}
                 className={`flex h-11 flex-1 items-center justify-center gap-2 rounded-[8px] text-[14px] font-medium transition-colors ${
-                  on ? 'bg-raised text-text ring-1 ring-rule' : 'text-muted hover:text-text'
+                  on ? 'text-text ring-1 ring-rule' : 'text-muted hover:text-text'
                 }`}
               >
                 <Icon size={16} strokeWidth={2.2} aria-hidden="true" />

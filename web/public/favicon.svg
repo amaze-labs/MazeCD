@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="MazeCD">
   <title>MazeCD</title>
-  <!-- The status gutter, stood upright: health above, sync below, cut apart.
-       The same device runs down the left edge of every row in the app.
+  <!-- The mark, stood upright and cut apart. It used to be ArgoCD's healthy
+       green above its progressing blue: the product's own mark spoke in
+       borrowed status colours, which is the whole of what v6 set out to fix.
+       It is now MazeCD's magenta, over a dimmer step of itself.
        The mark stays within 184px of the centre, inside the 204.8px radius
        Android leaves uncropped on a maskable icon. -->
-  <rect width="512" height="512" rx="112" fill="#0A0F14"/>
-  <path d="M152 176a104 104 0 0 1 208 0v124H152z" fill="#18BE94"/>
-  <path d="M152 328h208v8a104 104 0 0 1-208 0z" fill="#0DAEEB"/>
+  <rect width="512" height="512" rx="112" fill="#0E1322"/>
+  <path d="M152 176a104 104 0 0 1 208 0v124H152z" fill="#F06CE4"/>
+  <path d="M152 328h208v8a104 104 0 0 1-208 0z" fill="#8F4589"/>
 </svg>

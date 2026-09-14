@@ -19,7 +19,7 @@ export function Tabs<T extends string>({
           onClick={() => onChange(t)}
           className={`relative h-11 flex-1 text-[14px] ${
             t === active
-              ? 'text-text after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:bg-text'
+              ? 'text-accent after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:bg-accent'
               : 'text-muted'
           }`}
         >

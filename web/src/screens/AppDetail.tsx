@@ -5,7 +5,7 @@ import { ChevronLeft, RefreshCw, ServerOff } from 'lucide-react'
 import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
 import { Tabs } from '../components/Tabs'
 import { Tree } from '../components/Tree'
-import { Button, Callout, InstancePill, Revision, StatusBadge } from '../components/ui'
+import { Button, Callout, Field, InstancePill, Revision, StatusBadge } from '../components/ui'
 import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
 import { Tooltip } from '../components/Tooltip'
 import { ResourceSheet } from '../components/ResourceSheet'
@@ -42,10 +42,6 @@ export function AppDetailScreen() {
   // moment before /api/instances lands, and it follows the theme rather than
   // hard-coding the dark theme's grey onto a white card.
   const color = meta?.color ?? 'var(--color-muted)'
-  // Same rule as the card: the project, dropped when it only repeats the
-  // instance chip standing next to it.
-  const project = detail.data?.spec.project
-  const where = project === instance ? '' : project
   // The row's leading number, in the one place on this screen where it
   // already has a sentence to sit in. The header does not repeat the row's
   // grid: the facts it adds -- both states spelled out, the operation's own
@@ -148,9 +144,14 @@ export function AppDetailScreen() {
           <StatusBadge state={status?.sync?.status ?? 'Unknown'} />
         </div>
 
+        {/* The project used to sit here as a bare word with nothing saying
+            what it was — the exact complaint this pass is answering. It is
+            now a labelled field in the sheet below, so this line carries only
+            what the sheet does not: where the application is read from, and
+            what revision is actually deployed. */}
         <div className="mt-1.5 flex items-center gap-2">
           <InstancePill name={instance} color={color} />
-          <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{where}</span>
+          <span className="min-w-0 flex-1" />
           <Revision sha={status?.sync?.revision} className="text-muted" />
         </div>
 
@@ -176,7 +177,7 @@ export function AppDetailScreen() {
         )}
 
         {status?.health?.message && (
-          <p className="mt-2 line-clamp-3 rounded-card bg-surface-degraded px-3 py-2 text-[13px] leading-snug text-text-degraded">
+          <p className="mt-2 line-clamp-3 rounded-card px-3 py-2 text-[13px] leading-snug text-degraded ring-1 ring-degraded/45">
             {status.health.message}
           </p>
         )}
@@ -242,6 +243,38 @@ export function AppDetailScreen() {
           </>
         )}
       </header>
+
+      {/* The spec sheet.
+ *
+ * Four of these six fields the product has never shown anywhere: the
+ * repository, the target revision, the cluster and the destination
+ * namespace. They are the facts an operator wants at exactly the moment they
+ * have chosen one application out of ninety-nine and are deciding whether
+ * what is deployed is what they think is deployed — and they are useless in a
+ * list, where ninety-nine repositories are ninety-nine identical strings.
+ *
+ * So the labelled grid lives here, on the detail, and not on the card. On a
+ * card it is four more lines under a rule: the resting row goes from 58px to
+ * something over 100 and the list stops holding nine applications on arrival,
+ * which is the one measurement this design is not allowed to lose. Small
+ * cards were asked for twice.
+ *
+ * Below the header rather than inside it, because the header is sticky and
+ * 120px of specification pinned to the top of the screen is 120px of the
+ * resource tree that is never on it. This scrolls away, like the counters and
+ * the search on the list.
+ *
+ * Fields with no value are not drawn at all — a field is a fact ArgoCD gave
+ * us, and a column of em-dashes is not a specification. */}
+      {detail.data && (
+        <dl className="mx-4 mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-card border border-rule bg-panel px-3 py-2.5">
+          <Field label="Project" value={detail.data.spec.project} />
+          <Field label="Namespace" value={detail.data.spec.destination.namespace} mono />
+          <Field label="Repository" value={detail.data.spec.source?.repoURL} mono />
+          <Field label="Target" value={detail.data.spec.source?.targetRevision} mono />
+          <Field label="Cluster" value={detail.data.spec.destination.server} mono />
+        </dl>
+      )}
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 

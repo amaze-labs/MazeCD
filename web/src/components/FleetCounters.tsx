@@ -16,6 +16,13 @@ const ORDER: Bucket[] = ['Degraded', 'OutOfSync', 'Progressing', 'Suspended', 'U
  * Empty buckets are not drawn, so an untroubled fleet is one green chip
  * rather than six chips of zeroes, and each chip filters the list to itself.
  *
+ * Outlined, like everything else. These were the largest painted objects on
+ * the list screen — six filled lozenges across the top, above a list whose
+ * whole point is that most of it is calm. What tells a filtering chip from a
+ * resting one is no longer a heavier wash but a heavier edge at full strength
+ * against a 65% one, drawn as an inset shadow so nothing moves when it
+ * changes.
+ *
  * One row, scrolling, in urgency order with healthy last. Six worded chips
  * cannot fit 393px, and wrapping them cost two rows of an 852px screen
  * before the first application — furniture the operator pays for on arrival.
@@ -49,13 +56,9 @@ export function FleetCounters({
             onClick={() => onPick(on ? '' : b)}
             className="flex h-11 shrink-0 items-center gap-1.5 rounded-pill px-2.5 text-[13px]"
             style={{
-              // Both fractions are per-theme. On paper the filtering chip's
-              // fill has to stay far lighter than it is on black -- 15%, not
-              // 26% -- or a green chip's own label falls to 4.2:1 inside it;
-              // what carries "this one is filtering" there is the ring, which
-              // goes the other way.
-              background: tint(s.color, on ? 'var(--tint-fill-on)' : 'var(--tint-fill)'),
-              boxShadow: `inset 0 0 0 ${on ? 1.5 : 1}px ${tint(s.color, on ? 70 : 'var(--tint-edge)')}`,
+              boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${
+                on ? s.color : tint(s.color, 'var(--tint-outline)')
+              }`,
               color: s.color,
             }}
           >

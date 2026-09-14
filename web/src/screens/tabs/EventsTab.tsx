@@ -58,7 +58,9 @@ export function EventsTab({ instance, name }: { instance: string; name: string }
       {items.map((e, i) => (
         <li
           key={i}
-          className={`px-4 py-2.5 ${e.type === 'Warning' ? 'bg-surface-outofsync' : ''}`}
+          className={`px-4 py-2.5 ${
+            e.type === 'Warning' ? 'border-l-2 border-outofsync' : 'border-l-2 border-transparent'
+          }`}
         >
           <p className="flex items-baseline gap-2">
             {/* The word carries the type; the amber only reinforces it. A
