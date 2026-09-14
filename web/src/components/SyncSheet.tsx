@@ -550,7 +550,7 @@ export function SyncSheet({
               >
                 {verdict.phase.toLowerCase()}
               </b>
-              {verdict.message ? `: ${verdict.message}` : '.'} Nothing was changed.
+              {verdict.message ? `: ${verdict.message}.` : '.'} Nothing was changed.
             </>
           ) : waiting ? (
             `Dry run requested. ${instance} reports the outcome here when it has run it; nothing is changed either way.`
