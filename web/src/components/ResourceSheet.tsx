@@ -6,7 +6,11 @@ import { streamLogs } from '../lib/logs'
 import { KindIcon, StatusBadge } from './ui'
 import type { ResourceNode } from '../api/types'
 
-const TABS = ['Logs', 'Manifest'] as const
+/** "Live manifest", not "Manifest". There are two manifest views in this app
+ * now and they answer opposite questions: this one is the object as the
+ * cluster has it this second, `ManifestsSheet` is what Git renders for the
+ * whole application. One word stops the two being confused. */
+const TABS = ['Logs', 'Live manifest'] as const
 
 export function ResourceSheet({
   node,
@@ -20,7 +24,7 @@ export function ResourceSheet({
   onClose: () => void
 }) {
   const isPod = node.kind === 'Pod'
-  const [tab, setTab] = useState<(typeof TABS)[number]>(isPod ? 'Logs' : 'Manifest')
+  const [tab, setTab] = useState<(typeof TABS)[number]>(isPod ? 'Logs' : 'Live manifest')
 
   return (
     <Sheet open onClose={onClose} title={node.name} icon={<KindIcon kind={node.kind} />}>
@@ -58,7 +62,7 @@ export function ResourceSheet({
 
       <div className="mt-3">
         {tab === 'Logs' && isPod && <Logs instance={instance} app={app} node={node} />}
-        {tab === 'Manifest' && <Manifest instance={instance} app={app} node={node} />}
+        {tab === 'Live manifest' && <Manifest instance={instance} app={app} node={node} />}
       </div>
 
     </Sheet>

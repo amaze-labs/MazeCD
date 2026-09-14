@@ -116,3 +116,26 @@ export function TreeSkeleton() {
     </div>
   )
 }
+
+/** What both of the read-only sheets are waiting for: a list of resources
+ * under bands. The same 40px band and the same ruled rows they will draw, so
+ * nothing jumps when the answer lands. */
+export function SheetListSkeleton() {
+  return (
+    <div aria-hidden="true">
+      {[2, 1, 3].map((n, g) => (
+        <section key={g} className="[&+&]:pt-3">
+          <div className="flex h-10 items-center bg-band px-4">
+            <span className="skel h-3" style={{ width: NAME_WIDTHS[g] }} />
+          </div>
+          {Array.from({ length: n }, (_, i) => (
+            <div key={i} className="px-4 py-2.5 [&+div]:border-t [&+div]:border-rule">
+              <span className="skel block h-2.5 w-[46%]" />
+              <span className="skel mt-2 block h-2.5" style={{ width: NAME_WIDTHS[(g + i) % 8] }} />
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}

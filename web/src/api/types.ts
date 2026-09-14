@@ -101,3 +101,42 @@ export type AppEvent = {
   lastTimestamp: string
   involvedObject?: { kind: string; name: string }
 }
+
+/**
+ * One entry of `applications/{name}/managed-resources`: a resource ArgoCD
+ * manages, with the cluster's copy beside Git's.
+ *
+ * THE FOUR STATE FIELDS ARE JSON *STRINGS*, not objects — ArgoCD marshals
+ * them once on the way out and the client parses them again. A side that does
+ * not exist is the string `"null"`, which is what `json.Marshal(nil)`
+ * produces: a resource that exists only in Git and one that exists only in
+ * the cluster are both ordinary, and both look like that.
+ *
+ * `normalizedLiveState` is the live object after ArgoCD's normalizers and
+ * `predictedLiveState` what the live object would become — the pair a diff is
+ * actually computed from. See `lib/diff.ts` for why not the raw two.
+ */
+export type ResourceDiff = {
+  group?: string
+  kind: string
+  namespace: string
+  name: string
+  targetState: string
+  liveState: string
+  normalizedLiveState?: string
+  predictedLiveState?: string
+  hook?: boolean
+  modified?: boolean
+}
+
+export type ManagedResources = { items?: ResourceDiff[] }
+
+/** `applications/{name}/manifests`: what the repo renders at a revision,
+ * before anything is applied. Each manifest is a JSON string of one object. */
+export type ManifestsResponse = {
+  manifests?: string[]
+  namespace?: string
+  server?: string
+  revision?: string
+  sourceType?: string
+}

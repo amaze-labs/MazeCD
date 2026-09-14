@@ -110,6 +110,11 @@ async function shootTheme(theme) {
   // offers when it opens, and the resource list once it is unfolded. The
   // second is the one that proves the long case is usable on a phone.
   await page.goto(`${base}/apps/home/doc-archive`)
+  await page.getByRole('tab', { name: 'Grouped' }).waitFor()
+  await page.waitForTimeout(150)
+  // The question and the two things that answer it, on one screen: the word
+  // OutOfSync boxed as the control it now is, and Sync… beside Refresh.
+  await shot('15b-app-detail-outofsync.png')
   await page.getByRole('button', { name: /^Sync/ }).click()
   await page.getByRole('dialog', { name: 'Synchronize' }).waitFor()
   await page.waitForTimeout(150)
@@ -128,6 +133,53 @@ async function shootTheme(theme) {
   await page.waitForTimeout(150)
   await shot('17-app-detail-sync-resources.png')
   await page.getByRole('button', { name: 'Cancel' }).click()
+
+  // THE DIFF, on the same drifted application, reached the way the screen
+  // offers it: by pressing the word OutOfSync. Two shots, because the two
+  // halves of this sheet are answering different questions -- the changed
+  // fields of a resource that exists on both sides, and the two resources
+  // that exist on only one, which is the case a field list cannot show and
+  // the band has to say in words.
+  await page.getByRole('button', { name: 'See what differs from Git' }).click()
+  await page.getByRole('dialog', { name: 'What differs' }).waitFor()
+  await page.getByText('spec.replicas').waitFor()
+  await page.waitForTimeout(150)
+  await shot('18-app-detail-diff.png')
+
+  // A resource that exists on only one side: the band says the whole answer,
+  // and the fields behind it are what has to be asked for -- nobody reads
+  // eight added lines to learn "the cluster does not have this". Unfolded
+  // here, with the group of resources that match below it.
+  await page.getByText(/all \d+ fields/).first().click()
+  await page.getByText('identical').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(150)
+  await shot('18b-app-detail-diff-one-sided.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
+
+  // The honest empty state: an application with nothing out of sync still
+  // gets an answer, and it names what was compared rather than showing a
+  // blank panel. grafana on this instance is Synced.
+  await page.goto(`${base}/apps/home/grafana`)
+  await page.getByRole('button', { name: 'See what differs from Git' }).click()
+  await page.getByText('Nothing differs').waitFor()
+  await page.waitForTimeout(150)
+  await shot('18c-app-detail-diff-identical.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
+
+  // MANIFESTS, from the menu: the inventory first, folded, and then one
+  // object. The other manifest view in this app -- a resource's live copy --
+  // is a tab in the resource sheet; 06 photographs that one.
+  await page.goto(`${base}/apps/home/doc-archive`)
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: /^Manifests/ }).click()
+  await page.getByRole('dialog', { name: 'Desired manifests' }).waitFor()
+  await page.waitForTimeout(150)
+  await shot('19-app-detail-manifests.png')
+
+  await page.getByRole('dialog').locator('summary').first().click()
+  await page.waitForTimeout(150)
+  await shot('19b-app-detail-manifests-open.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
 
   // 90 of 99 applications are healthy, so the quiet card is the one the
   // list is mostly made of: capture it, and prove the counter chips filter.

@@ -18,6 +18,8 @@ import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
 import { Sheet } from '../components/Sheet'
 import { ResourceSheet } from '../components/ResourceSheet'
 import { SyncSheet } from '../components/SyncSheet'
+import { DiffSheet } from '../components/DiffSheet'
+import { ManifestsSheet } from '../components/ManifestsSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
@@ -45,6 +47,8 @@ export function AppDetailScreen() {
   const [menu, setMenu] = useState(false)
   const [events, setEvents] = useState(false)
   const [sync, setSync] = useState(false)
+  const [diff, setDiff] = useState(false)
+  const [manifests, setManifests] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const spec = detail.data?.spec
@@ -171,7 +175,25 @@ export function AppDetailScreen() {
                   {stateStyle(health).label}
                 </span>
                 <i className="sep !mx-px" aria-hidden="true" />
-                <SyncWord sync={status?.sync?.status ?? ''} />
+                {/* THE SYNC VERDICT IS THE BUTTON, and the diff is behind it.
+                    `OutOfSync` is the one word in this product that asks a
+                    question — *what is different?* — and it has been asking it
+                    on every yellow row since the app was built, while the only
+                    answer was a laptop. Putting that answer in the ⋮ menu
+                    would leave the question visible and the answer hidden; the
+                    word itself is where a thumb already goes. It is boxed in
+                    the control hairline because in this design roundness is
+                    the whole affordance: if a corner is soft, you can press
+                    it. Pressable in every state, not only the yellow one — the
+                    operator who wants to be told nothing differs is the one
+                    who has just pressed Synchronize. */}
+                <button
+                  onClick={() => setDiff(true)}
+                  aria-label="See what differs from Git"
+                  className="-my-1.5 flex h-10 items-center rounded-control px-2.5 ring-1 ring-rule"
+                >
+                  <SyncWord sync={status?.sync?.status ?? ''} />
+                </button>
                 <i className="sep !mx-px" aria-hidden="true" />
                 {/* On the detail there is room to say it in words, so the
                     bolt is not asked to carry the whole fact alone. */}
@@ -333,6 +355,16 @@ export function AppDetailScreen() {
           <button
             onClick={() => {
               setMenu(false)
+              setManifests(true)
+            }}
+            className="flex h-14 w-full items-center border-b border-rule px-4 text-left text-[14px]"
+          >
+            Manifests
+            <span className="t-mono ml-auto text-[11px] text-dim">what Git asks for</span>
+          </button>
+          <button
+            onClick={() => {
+              setMenu(false)
               void act(true)
             }}
             disabled={!online}
@@ -360,6 +392,22 @@ export function AppDetailScreen() {
           detail={detail.data}
           onClose={() => setSync(false)}
         />
+      )}
+
+      {/* Both read-only, both mounted only while open — a diff is a reading of
+          the moment it was asked for, and reopening it should ask again
+          rather than show what was true five minutes ago. */}
+      {diff && (
+        <DiffSheet
+          instance={instance}
+          name={name}
+          revision={status?.sync?.revision}
+          onClose={() => setDiff(false)}
+        />
+      )}
+
+      {manifests && (
+        <ManifestsSheet instance={instance} name={name} onClose={() => setManifests(false)} />
       )}
 
       {selected && (
