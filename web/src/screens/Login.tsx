@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { ApiError } from '../api/client'
+import { Button } from '../components/ui'
 
 export function Login() {
   const { login } = useAuth()
@@ -47,13 +48,9 @@ export function Login() {
           className="h-14 rounded-control bg-inset px-4 text-[17px] outline-none placeholder:text-muted-tint focus:bg-raised"
           autoFocus
         />
-        <button
-          type="submit"
-          disabled={busy || password === ''}
-          className="h-14 rounded-control bg-text text-[17px] font-semibold text-ink disabled:opacity-40"
-        >
+        <Button tone="strong" type="submit" disabled={busy || password === ''} className="!h-14 !text-[17px] font-semibold">
           {busy ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
         {error && <p className="text-center text-[14px] leading-snug text-degraded">{error}</p>}
       </form>
     </div>

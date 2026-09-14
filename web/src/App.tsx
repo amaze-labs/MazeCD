@@ -6,6 +6,7 @@ import { Apps } from './screens/Apps'
 import { AppDetailScreen } from './screens/AppDetail'
 import { Settings } from './screens/Settings'
 import { UpdateToast } from './components/UpdateToast'
+import { Toasts } from './components/Toasts'
 
 function Routed() {
   const { authenticated } = useAuth()
@@ -23,6 +24,7 @@ function Routed() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Shell>
+      <Toasts />
       <UpdateToast />
     </>
   )

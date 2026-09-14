@@ -59,6 +59,21 @@
   --color-surface-outofsync: #241d10;
   --color-text-degraded: #f2b8bd;
 
+  /* The sheet scrim and the one shadow this interface owns. Both are
+     black-on-black in the dark theme and would be crude on paper, so both
+     are tokens rather than literals in a utility. */
+  --color-scrim: rgb(0 0 0 / 0.7);
+  /* A skeleton bar. Not --color-raised: a bar has to be legible against the
+     *card* it sits on, and on paper a surface one step up from white is not
+     -- the first light render came out as white shapes on white, visible
+     only while the sweep crossed them. This is the one surface whose job is
+     to be seen, so it gets its own value, about 1.3:1 against its card in
+     both themes. */
+  --color-skel: #222e3d;
+  /* The sweep that crosses a skeleton: a highlight, so it is white in both
+     themes and only its strength changes. */
+  --color-shimmer: rgb(255 255 255 / 0.07);
+
   --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -69,11 +84,115 @@
   --radius-pill: 999px;
 }
 
+/* Values that are not colours but still differ by theme, and the dark
+   defaults for them. Each is a percentage or a factor that some surface
+   depends on to hold its contrast — the reason they are variables at all is
+   that the same number does not hold in both themes (see the light block).
+
+   --tint-fill     the wash behind a status badge or a resting counter chip
+   --tint-fill-on  the same wash on a counter chip that is filtering
+   --tint-edge     the hairline ring around a badge
+   --tint-border   the border of a card whose state is loud but not tinted
+   --press         what `active:` does to a tinted card
+   --shadow-card   the only shadow in the interface */
+:root {
+  --tint-fill: 12%;
+  --tint-fill-on: 26%;
+  --tint-edge: 32%;
+  --tint-border: 45%;
+  --press: 1.14;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-float: 0 10px 30px -12px rgb(0 0 0 / 0.9);
+}
+
+/* Daylight.
+
+   Not the dark theme inverted. Two things had to be rebuilt rather than
+   flipped.
+
+   The six status colours. ArgoCD's own values are chosen for a dark console
+   and none of them survives a white card: its amber #f4c030 reads at 1.7:1 on
+   white and its unknown #ccd6dd at 1.4:1 — invisible, not merely weak. Each
+   one is walked down its own hue until it clears 4.5:1 as text on the card
+   *and* on the page ground *and* inside its own 10% badge wash, which is the
+   worst of the three. What that costs is luminance separation: on paper all
+   six land between 6 and 8 against white, so they no longer sort themselves
+   by brightness the way they do on black. The icon and the word were always
+   the information — colour was muscle memory and never the only channel —
+   so they keep carrying it, and the hues stay far enough apart (green, blue,
+   red, brown-amber, violet, slate) to be told apart at a glance.
+
+   The opacities. A wash of a *light* colour on a dark ground barely moves
+   the ground; a wash of a *dark* colour on a light ground darkens it fast,
+   and the text sitting in that wash is the same dark colour. So the fills
+   come down (12%→10%, and the filtering chip 26%→15%, which would otherwise
+   drop a green chip's own label to 4.2:1) and the strokes go up (32%→45%,
+   45%→62%) to keep an edge visible against paper. And `active:` inverts:
+   brightening a white card does nothing, so a press darkens instead. */
+:root[data-theme='light'] {
+  /* Paper below, cards on top of it — the same order as the dark theme, so
+     a card still reads as an object. */
+  --color-ink: #eef2f7;
+  --color-panel: #ffffff;
+  --color-raised: #e3eaf3;
+  --color-inset: #dae3ee;
+  --color-rule: #ccd6e2;
+  --color-text: #101820;
+  --color-muted: #556475;
+  /* In the dark theme this is *lighter* than muted, because the tinted
+     grounds there are lighter than the page. Here the tinted grounds are
+     pale washes and the correction runs the other way: darker, not lighter. */
+  --color-muted-tint: #4e5a68;
+
+  --color-healthy: #046850;
+  --color-progressing: #095e93;
+  --color-degraded: #ab2430;
+  /* The one that changes most. #f4c030 darkened far enough to be legible on
+     white is a brown, and a brown sitting next to a red is the collision
+     TabelloneTreni's stylesheet warns about. It is kept as a brown-amber
+     rather than pushed toward orange precisely so it does not drift into the
+     degraded red: the two are 30° apart in hue and the icons differ. */
+  --color-outofsync: #8a4b06;
+  --color-suspended: #574e9b;
+  /* Unknown is the neutral, and on paper the neutral has to be dark. It sits
+     one step darker than muted text so "ArgoCD cannot tell" never reads as
+     the same grey as a secondary label. */
+  --color-unknown: #475462;
+
+  --color-surface-degraded: #fdeaec;
+  --color-surface-outofsync: #fbf2da;
+  --color-text-degraded: #8c2029;
+
+  --color-scrim: rgb(16 24 32 / 0.45);
+  --color-skel: #cfd8e5;
+  --color-shimmer: rgb(255 255 255 / 0.8);
+
+  --tint-fill: 10%;
+  --tint-fill-on: 15%;
+  --tint-edge: 45%;
+  --tint-border: 62%;
+  --press: 0.94;
+  --shadow-card: 0 1px 2px rgb(16 24 32 / 0.08);
+  --shadow-float: 0 12px 32px -12px rgb(16 24 32 / 0.28);
+}
+
 html {
   color-scheme: dark;
   background: var(--color-ink);
   /* Keep the layout stable under the iOS keyboard and address bar. */
   height: 100%;
+}
+html[data-theme='light'] {
+  color-scheme: light;
+}
+/* `lib/theme.ts` stamps data-theme before React paints, so this only covers
+   the frames before the bundle has run — but on a phone in daylight those
+   are the frames that flash white-on-black or black-on-white. */
+@media (prefers-color-scheme: light) {
+  html:not([data-theme]) {
+    color-scheme: light;
+    background: #eef2f7;
+  }
 }
 
 body {
@@ -127,4 +246,54 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .spin { animation: none; }
+}
+
+/* The shape of the thing that is coming, not a spinner. A skeleton is a block
+   at the raised surface with one highlight sliding across it: the sweep is
+   white in both themes, and only its strength changes — 7% on a dark panel is
+   as much as the eye wants, 85% is what it takes to be seen on paper. */
+.skel {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-skel);
+  border-radius: 6px;
+}
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--color-shimmer), transparent);
+  animation: shimmer 1.7s infinite;
+}
+@keyframes shimmer {
+  to { transform: translateX(100%); }
+}
+
+/* A toast rises from the thumb's end of the screen, not from the top: this is
+   a phone, and the hand is already down there. */
+.toast-in { animation: toast-in 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+.toast-out { animation: toast-out 0.22s ease-in forwards; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(14px) scale(0.98); }
+}
+
+/* A real tooltip: an element that fades in, with an arrow — not a `title`,
+   which a touch device never shows at all. */
+.pop-in { animation: pop-in 0.16s ease-out; }
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel::after,
+  .toast-in,
+  .toast-out,
+  .pop-in {
+    animation: none;
+  }
+  .toast-out { opacity: 0; }
 }

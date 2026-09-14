@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, PackageOpen } from 'lucide-react'
 import type { ResourceNode } from '../api/types'
 import { healthLoud } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
-import { KindIcon, tint } from './ui'
+import { EmptyState, KindIcon, tint } from './ui'
 
 type TreeNode = ResourceNode & { children: TreeNode[] }
 
@@ -100,10 +100,10 @@ export function Tree({
 
   if (nodes.length === 0) {
     return (
-      <p className="px-8 py-12 text-center text-[15px] leading-relaxed text-muted">
-        ArgoCD reports no resources for this application. If it was just created, it has not been
-        synced yet.
-      </p>
+      <EmptyState icon={<PackageOpen size={22} strokeWidth={2} />} title="No resources">
+        ArgoCD reports nothing under this application. If it was only just created, it has not
+        been synced yet — nothing is wrong, there is simply nothing there.
+      </EmptyState>
     )
   }
   return <div className="pt-1 pr-4 pb-2">{roots.map((n) => render(n, 0))}</div>

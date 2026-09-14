@@ -34,7 +34,7 @@ export function UpdateToast() {
 
   if (!apply) return null
   return (
-    <div className="pb-safe fixed inset-x-3 bottom-24 z-[60] flex items-center gap-3 rounded-control bg-raised px-4 py-3 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.9)]">
+    <div className="pb-safe fixed inset-x-3 bottom-24 z-[60] flex items-center gap-3 rounded-control bg-raised px-4 py-3 shadow-[var(--shadow-float)]">
       <span className="flex-1 text-[14px] leading-snug">A newer build of MazeCD is ready.</span>
       <button
         onClick={apply}

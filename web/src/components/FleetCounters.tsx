@@ -49,8 +49,13 @@ export function FleetCounters({
             onClick={() => onPick(on ? '' : b)}
             className="flex h-11 shrink-0 items-center gap-1.5 rounded-pill px-2.5 text-[13px]"
             style={{
-              background: tint(s.color, on ? 26 : 12),
-              boxShadow: `inset 0 0 0 ${on ? 1.5 : 1}px ${tint(s.color, on ? 70 : 26)}`,
+              // Both fractions are per-theme. On paper the filtering chip's
+              // fill has to stay far lighter than it is on black -- 15%, not
+              // 26% -- or a green chip's own label falls to 4.2:1 inside it;
+              // what carries "this one is filtering" there is the ring, which
+              // goes the other way.
+              background: tint(s.color, on ? 'var(--tint-fill-on)' : 'var(--tint-fill)'),
+              boxShadow: `inset 0 0 0 ${on ? 1.5 : 1}px ${tint(s.color, on ? 70 : 'var(--tint-edge)')}`,
               color: s.color,
             }}
           >

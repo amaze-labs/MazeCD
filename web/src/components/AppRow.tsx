@@ -92,13 +92,19 @@ export function AppRow({ app, color }: { app: App; color: string }) {
           ? 'var(--color-rule)'
           : tinted(bucket)
             ? state.color
-            : tint(state.color, 45),
+            : tint(state.color, 'var(--tint-border)'),
       }}
     >
       {when ? (
         <time
           dateTime={app.operationFinishedAt}
+          // What this number *is* now lives where a thumb can get at it: the
+          // legend behind the ⓘ in the list header, which explains both
+          // numeric columns once instead of ninety-nine times. The title
+          // stays for a pointer, and the aria-label is what a screen reader
+          // says in place of "1d".
           title={`last operation finished ${when.long}`}
+          aria-label={`last operation finished ${when.long}`}
           className={`col-start-1 row-span-2 text-right leading-none tabular-nums ${
             resting ? `text-[13px] ${muted}` : 'text-[20px] font-semibold text-text'
           }`}

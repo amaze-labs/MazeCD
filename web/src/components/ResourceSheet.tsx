@@ -148,7 +148,14 @@ function Manifest({ instance, app, node }: { instance: string; app: string; node
       ),
     refetchInterval: false,
   })
-  if (q.isLoading) return <p className="text-[14px] text-muted">Loading the live manifest…</p>
+  if (q.isLoading)
+    return (
+      <div className="flex flex-col gap-1.5 rounded-control bg-ink p-3" aria-hidden="true">
+        {['72%', '54%', '88%', '40%', '66%', '78%', '48%'].map((w, i) => (
+          <span key={i} className="skel h-2.5" style={{ width: w }} />
+        ))}
+      </div>
+    )
   if (q.isError)
     return (
       <p className="text-[14px] leading-snug text-degraded">

@@ -123,8 +123,12 @@ export function playwright() {
   return createRequire(path.join(webDir, 'package.json'))('playwright')
 }
 
-/** A browser context the size and shape of the phone MazeCD is built for. */
-export async function phone() {
+/** A browser context the size and shape of the phone MazeCD is built for.
+ * `colorScheme` drives `prefers-color-scheme`, which is the only input the
+ * app's default theme has -- so passing 'light' here renders the light theme
+ * through exactly the path a real phone uses, rather than through a switch
+ * the harness flipped. */
+export async function phone({ colorScheme } = {}) {
   const { chromium, devices } = playwright()
   const browser = await chromium.launch()
   const context = await browser.newContext({
@@ -132,6 +136,7 @@ export async function phone() {
     deviceScaleFactor: 3,
     isMobile: true,
     hasTouch: true,
+    colorScheme,
     userAgent: devices['iPhone 15 Pro'].userAgent,
   })
   return { browser, page: await context.newPage() }

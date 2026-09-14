@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { CircleCheck, KeyRound, LogOut, Server, TriangleAlert } from 'lucide-react'
+import { CircleCheck, KeyRound, LogOut, Moon, Server, ServerOff, Smartphone, Sun, TriangleAlert } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useInstances } from '../api/queries'
 import { api } from '../api/client'
 import { useAuth } from '../lib/auth'
-import { InstancePill, tint } from '../components/ui'
+import { Button, EmptyState, InstancePill, tint } from '../components/ui'
+import { setTheme, useThemeChoice, type ThemeChoice } from '../lib/theme'
 import type { InstanceInfo } from '../api/types'
 
 /**
@@ -21,9 +22,18 @@ function link(i: InstanceInfo): { word: string; icon: LucideIcon; color: string 
   return { word: 'Connected', icon: CircleCheck, color: 'var(--color-healthy)' }
 }
 
+/** Three, not a switch. "System" is the absence of a decision, and once a
+ * decision has been made a two-state control can never give it back. */
+const THEMES: { value: ThemeChoice; label: string; icon: LucideIcon }[] = [
+  { value: 'system', label: 'System', icon: Smartphone },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+]
+
 export function Settings() {
   const instances = useInstances()
   const { logout } = useAuth()
+  const theme = useThemeChoice()
   const version = useQuery({
     queryKey: ['version'],
     queryFn: () => api.get<{ version: string }>('/api/version'),
@@ -49,7 +59,7 @@ export function Settings() {
             return (
               <li
                 key={i.name}
-                className="flex items-center gap-3 rounded-card bg-panel px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.4)]"
+                className="flex items-center gap-3 rounded-card bg-panel px-3 py-2.5 shadow-[var(--shadow-card)]"
               >
                 <span
                   className="flex size-9 shrink-0 items-center justify-center rounded-control"
@@ -86,17 +96,56 @@ export function Settings() {
               </li>
             )
           })}
-          {(instances.data ?? []).length === 0 && (
-            <li className="py-8 text-center text-[15px] leading-relaxed text-muted">
-              No instances are configured. Add one to the configuration file and restart MazeCD.
-            </li>
-          )}
         </ul>
+        {(instances.data ?? []).length === 0 && !instances.isLoading && (
+          <div className="-mx-4">
+            <EmptyState
+              icon={<ServerOff size={22} strokeWidth={2} />}
+              title="No instances configured"
+            >
+              MazeCD reads its instances from the configuration file mounted into the server.
+              Add one there and restart it, and the fleet appears here.
+            </EmptyState>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">
+          Appearance
+        </h2>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted">
+          MazeCD follows the phone unless you tell it otherwise. The choice is remembered on this
+          device.
+        </p>
+        <div
+          className="mt-3 flex gap-1 rounded-control bg-panel p-1 shadow-[var(--shadow-card)]"
+          role="group"
+          aria-label="Theme"
+        >
+          {THEMES.map(({ value, label, icon: Icon }) => {
+            const on = theme === value
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setTheme(value)}
+                className={`flex h-11 flex-1 items-center justify-center gap-2 rounded-[8px] text-[14px] font-medium transition-colors ${
+                  on ? 'bg-raised text-text ring-1 ring-rule' : 'text-muted hover:text-text'
+                }`}
+              >
+                <Icon size={16} strokeWidth={2.2} aria-hidden="true" />
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </section>
 
       <section className="mt-6">
         <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">Build</h2>
-        <dl className="mt-2 flex flex-col gap-1 rounded-card bg-panel px-3 py-2.5 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
+        <dl className="mt-2 flex flex-col gap-1 rounded-card bg-panel px-3 py-2.5 text-[14px] shadow-[var(--shadow-card)]">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Server</dt>
             <dd className="t-mono text-[13px]">{version.data?.version ?? '…'}</dd>
@@ -109,13 +158,10 @@ export function Settings() {
       </section>
 
       <section className="mt-6 pb-4">
-        <button
-          onClick={() => void logout()}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-control bg-raised text-[15px] font-medium ring-1 ring-rule active:bg-inset"
-        >
+        <Button className="w-full" onClick={() => void logout()}>
           <LogOut size={17} aria-hidden="true" />
           Sign out
-        </button>
+        </Button>
       </section>
     </div>
   )

@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, RefreshCw } from 'lucide-react'
+import { ChevronLeft, RefreshCw, ServerOff } from 'lucide-react'
 import { useAppDetail, useResourceTree, useInstances } from '../api/queries'
 import { Tabs } from '../components/Tabs'
 import { Tree } from '../components/Tree'
-import { InstancePill, Revision, StatusBadge } from '../components/ui'
+import { Button, Callout, InstancePill, Revision, StatusBadge } from '../components/ui'
+import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
+import { Tooltip } from '../components/Tooltip'
 import { ResourceSheet } from '../components/ResourceSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
+import { toast } from '../lib/toast'
 import { ago } from '../lib/ago'
 import { EventsTab } from './tabs/EventsTab'
 import type { ResourceNode } from '../api/types'
@@ -34,9 +37,11 @@ export function AppDetailScreen() {
   const qc = useQueryClient()
   const instances = useInstances()
   const meta = (instances.data ?? []).find((i) => i.name === instance)
-  const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
-  const color = meta?.color ?? '#7E8C9A'
+  // A configured instance always has a colour; this is the fallback for the
+  // moment before /api/instances lands, and it follows the theme rather than
+  // hard-coding the dark theme's grey onto a white card.
+  const color = meta?.color ?? 'var(--color-muted)'
   // Same rule as the card: the project, dropped when it only repeats the
   // instance chip standing next to it.
   const project = detail.data?.spec.project
@@ -69,17 +74,34 @@ export function AppDetailScreen() {
     cancelPress()
     if (hardPress.current) return
     hardPress.current = true
-    void act(() => refreshApp(instance, name, true))
+    void act(true)
   }
 
-  async function act(fn: () => Promise<unknown>) {
-    setActionError('')
+  /**
+   * The one action, and the first time it has ever said anything.
+   *
+   * A refresh against a healthy instance comes back in under 200ms: the icon
+   * turned once and the screen looked exactly as it had, so a tap that worked
+   * and a tap that missed the button were the same event. The receipt says
+   * which of the two it was, and names the hard variant when that is what ran
+   * -- re-rendering the manifests is a different, slower thing than asking
+   * ArgoCD to re-read, and an operator who long-pressed by accident should be
+   * told so rather than left to wonder why it took four seconds.
+   */
+  async function act(hard: boolean) {
     setBusy(true)
     try {
-      await fn()
+      await refreshApp(instance, name, hard)
       await invalidate()
+      toast(
+        'ok',
+        hard ? 'Hard refresh requested' : 'Refresh requested',
+        hard
+          ? `${instance} is re-rendering the manifests for ${name} and comparing them again.`
+          : `${instance} is re-reading ${name} from the cluster.`,
+      )
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e))
+      toast('fail', 'That did not go through', e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -96,6 +118,27 @@ export function AppDetailScreen() {
           Applications
         </Link>
 
+        {/* A first load draws the header it is about to have -- the title,
+            both badges, the instance line, the button -- rather than drawing
+            "Unknown / Unknown" and correcting itself a moment later, which
+            is a lie about an application's health and the one lie this
+            interface must never tell. */}
+        {detail.isError ? (
+          <Callout
+            icon={<ServerOff size={17} strokeWidth={2.2} />}
+            title="Could not load this application"
+            action={
+              <Button className="!h-10 !text-[14px]" onClick={() => void detail.refetch()}>
+                Try again
+              </Button>
+            }
+          >
+            <span className="t-mono block text-[12px]">{String(detail.error)}</span>
+          </Callout>
+        ) : detail.isLoading && !detail.data ? (
+          <AppDetailSkeleton />
+        ) : (
+          <>
         <h1 className="t-name text-[20px]">{name}</h1>
 
         {/* Both states, always, as badges. The list shows one because it
@@ -139,8 +182,13 @@ export function AppDetailScreen() {
         )}
 
         {/* MazeCD's one button. Everything it can ask ArgoCD to do, it asks
-            here, and ArgoCD counts it as a read. */}
-        <button
+            here, and ArgoCD counts it as a read. The ⓘ beside it carries what
+            used to be in the button's `title`: the long press. A `title` is
+            invisible on a phone, so on the device this app is for the hard
+            refresh had no way of ever being discovered. */}
+        <div className="mt-2.5 flex items-center gap-2">
+        <Button
+          className="min-w-0 flex-1"
           onClick={() => {
             // The press already ran the hard refresh; the click that
             // follows the release must not run a second, normal one.
@@ -148,7 +196,7 @@ export function AppDetailScreen() {
               hardPress.current = false
               return
             }
-            void act(() => refreshApp(instance, name, false))
+            void act(false)
           }}
           onPointerDown={(e) => {
             if (e.button !== 0) return // right click is the contextmenu path
@@ -171,31 +219,61 @@ export function AppDetailScreen() {
             hardRefresh()
           }}
           disabled={!online}
-          className="mt-2.5 flex h-11 w-full items-center justify-center gap-2 rounded-control bg-raised text-[15px] font-medium ring-1 ring-rule select-none active:bg-inset disabled:opacity-40"
-          title="Long press or right click to refresh with the manifests re-rendered"
         >
           <RefreshCw size={17} className={busy ? 'spin' : ''} aria-hidden="true" />
           Refresh
-        </button>
-
-        {actionError && (
-          <p className="mt-2 text-[13px] leading-snug text-degraded">
-            That did not go through: {actionError}
-          </p>
+        </Button>
+        <Tooltip label="What Refresh does">
+          <span className="block text-[13px] leading-snug">
+            <span className="block font-semibold text-text">Refresh</span>
+            <span className="mt-0.5 block text-muted">
+              Asks {instance} to re-read this application from the cluster. It changes nothing —
+              ArgoCD counts it as a read.
+            </span>
+            <span className="mt-2 block font-semibold text-text">Press and hold</span>
+            <span className="mt-0.5 block text-muted">
+              A hard refresh: the manifests are rendered again from source before the comparison,
+              which is what you want when the repository changed but the sync status did not.
+              Slower, and still a read.
+            </span>
+          </span>
+        </Tooltip>
+        </div>
+          </>
         )}
       </header>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
       <div id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'Tree' && (
-          <>
-            <p className="px-4 pt-2.5 text-[13px] text-muted">
-              {tree.data?.nodes?.length ?? 0} resources
-            </p>
-            <Tree nodes={tree.data?.nodes ?? []} onSelect={setSelected} />
-          </>
-        )}
+        {tab === 'Tree' &&
+          (tree.isError ? (
+            <div className="mx-4 mt-3">
+              <Callout
+                icon={<ServerOff size={17} strokeWidth={2.2} />}
+                title="Could not load the resource tree"
+                action={
+                  <Button className="!h-10 !text-[14px]" onClick={() => void tree.refetch()}>
+                    Try again
+                  </Button>
+                }
+              >
+                <span className="t-mono block text-[12px]">{String(tree.error)}</span>
+              </Callout>
+            </div>
+          ) : tree.isLoading && !tree.data ? (
+            <>
+              <span className="skel mx-4 mt-2.5 block h-3.5 w-24" aria-hidden="true" />
+              <TreeSkeleton />
+            </>
+          ) : (
+            <>
+              <p className="px-4 pt-2.5 text-[13px] text-muted">
+                {tree.data?.nodes?.length ?? 0} resources
+              </p>
+              <Tree nodes={tree.data?.nodes ?? []} onSelect={setSelected} />
+            </>
+          ))}
         {tab === 'Events' && <EventsTab instance={instance} name={name} />}
       </div>
 

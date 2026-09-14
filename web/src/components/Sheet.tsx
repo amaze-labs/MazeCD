@@ -16,7 +16,7 @@ export function Sheet({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end" role="dialog" aria-modal="true" aria-label={title}>
-      <button className="absolute inset-0 bg-black/70" onClick={onClose} aria-label="Close" />
+      <button className="absolute inset-0 bg-scrim" onClick={onClose} aria-label="Close" />
       <div className="pb-safe relative max-h-[85dvh] w-full overflow-y-auto rounded-t-sheet bg-panel">
         <div className="sticky top-0 z-10 bg-panel px-4 pt-2">
           <span className="mx-auto block h-1 w-9 rounded-full bg-rule" aria-hidden="true" />

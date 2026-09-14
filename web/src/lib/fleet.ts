@@ -49,8 +49,11 @@ export const tinted = (bucket: Bucket) => bucket === 'Degraded' || bucket === 'O
  * were missing. Everything else rests at the card surface.
  */
 export function surfaceOf(bucket: Bucket): string {
-  if (bucket === 'Degraded') return 'bg-surface-degraded active:brightness-110'
-  if (bucket === 'OutOfSync') return 'bg-surface-outofsync active:brightness-110'
+  // The press is a variable, not a constant: brightening a card is what
+  // reads as a press on a dark ground and does nothing at all on paper, so
+  // --press is 1.14 in the dark theme and 0.94 in the light one.
+  if (bucket === 'Degraded') return 'bg-surface-degraded active:brightness-[var(--press)]'
+  if (bucket === 'OutOfSync') return 'bg-surface-outofsync active:brightness-[var(--press)]'
   return 'bg-panel active:bg-raised'
 }
 
