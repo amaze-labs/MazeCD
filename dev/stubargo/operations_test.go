@@ -141,8 +141,13 @@ func TestSyncRunsThenFinishes(t *testing.T) {
 func TestSyncDryRunChangesNothing(t *testing.T) {
 	syncDuration = 20 * time.Millisecond
 	t.Cleanup(func() { syncDuration = 2 * time.Second })
-	srv, inst := serve(t, "utility")
-	before := *byName(inst.apps, "cert-manager")
+	srv, _ := serve(t, "utility")
+
+	// Everything here is read over HTTP: the instance's own goroutine is the
+	// only thing allowed to touch an *App, and a dry run now writes an
+	// operation from it like any other sync.
+	var before application
+	get(t, srv, "/api/v1/applications/cert-manager", &before)
 
 	var out application
 	if code := post(t, srv, "/api/v1/applications/cert-manager/sync",
@@ -163,16 +168,17 @@ func TestSyncDryRunChangesNothing(t *testing.T) {
 	// only place it is ever reported -- and nothing else about the application
 	// moves.
 	time.Sleep(100 * time.Millisecond)
-	after := byName(inst.apps, "cert-manager")
-	if after.Sync != before.Sync || after.Health != before.Health {
-		t.Errorf("dry run mutated the fixture: %+v -> %+v", before, *after)
+	var after application
+	get(t, srv, "/api/v1/applications/cert-manager", &after)
+	if after.Status.Sync != before.Status.Sync || after.Status.Health != before.Status.Health {
+		t.Errorf("dry run mutated the application: %+v -> %+v", before.Status, after.Status)
 	}
-	op := after.Op
+	op := after.Status.OperationState
 	if op == nil || op.Phase != "Succeeded" || op.SyncResult == nil {
 		t.Fatalf("no dry-run operation was recorded: %+v", op)
 	}
-	if op.Operation.Sync == nil || !op.Operation.Sync.DryRun {
-		t.Errorf("the recorded operation does not report itself as a dry run: %+v", op.Operation.Sync)
+	if op.Operation == nil || op.Operation.Sync == nil || !op.Operation.Sync.DryRun {
+		t.Errorf("the recorded operation does not report itself as a dry run: %+v", op.Operation)
 	}
 	if !strings.Contains(op.Message, "dry run") {
 		t.Errorf("dry-run message does not say so: %q", op.Message)
