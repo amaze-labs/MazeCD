@@ -400,9 +400,12 @@ func (i *instance) cycle(name string) {
 			if demo == nil {
 				continue
 			}
-			// A demo app that somebody synced keeps its operation; the
-			// cycler only owns the ones it has not been taken off.
-			demo.Op = nil
+			// A demo app that somebody synced keeps its operation: the
+			// cycler owns the health flip, and status.operationState only for
+			// as long as nothing else has written one. It used to clear it
+			// unconditionally every five seconds, which wiped the receipt of
+			// a sync -- and of a dry run, whose receipt is the only thing it
+			// produces -- seconds after it was asked for.
 			if demo.Health == "Healthy" {
 				demo.Health, demo.OperationPhase = "Progressing", "Running"
 			} else {
