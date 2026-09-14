@@ -15,6 +15,21 @@ export type App = {
   /** ArgoCD's own `status.health.message`. Present only when it has one to
    * give, which is why a row says nothing rather than inventing a reason. */
   healthMessage?: string
+  /** `status.operationState.finishedAt`: when the last sync operation ended,
+   * success or failure. Named for what it is — see the field's own comment in
+   * `internal/argocd/apps.go` for why this and not `reconciledAt` or the
+   * newest `status.history[]` entry. Absent when the application has never
+   * been operated on, which a row must draw as unknown rather than as "now". */
+  operationFinishedAt?: string
+  /** `len(status.resources)`. Absent means the instance never reported a
+   * resources list at all; 0 means it reported an empty one. Those are
+   * different facts, so the row draws them differently: a placed mark for the
+   * first, a real zero for the second. Never render absent as "0". */
+  totalResources?: number
+  /** Of `totalResources`, how many report a health that is not Healthy.
+   * Resources that report no health at all are not counted — see the Go
+   * field. Absent or 0 both mean "nothing to look at here". */
+  unhealthyResources?: number
 }
 
 export type InstanceError = { instance: string; message: string }

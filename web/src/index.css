@@ -82,6 +82,11 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   font-synthesis: none;
+  /* Figures in columns are what makes a list of ninety-nine readable, and
+     that is true of every figure in the app and not only of the ones a
+     component remembered to ask for: the ages and resource counts down an
+     application row, the fleet counters, the resource count above the tree. */
+  font-variant-numeric: tabular-nums;
   overscroll-behavior-y: contain;
   -webkit-tap-highlight-color: transparent;
 }

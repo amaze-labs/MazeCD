@@ -10,6 +10,7 @@ import { ResourceSheet } from '../components/ResourceSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
+import { ago } from '../lib/ago'
 import { EventsTab } from './tabs/EventsTab'
 import type { ResourceNode } from '../api/types'
 
@@ -36,10 +37,15 @@ export function AppDetailScreen() {
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const color = meta?.color ?? '#7E8C9A'
-  // Same rule as the card: a namespace that only repeats the application
-  // name is the duplication this rebuild exists to remove.
-  const ns = detail.data?.spec.destination.namespace || detail.data?.spec.project
-  const where = ns === name ? '' : ns
+  // Same rule as the card: the project, dropped when it only repeats the
+  // instance chip standing next to it.
+  const project = detail.data?.spec.project
+  const where = project === instance ? '' : project
+  // The row's leading number, in the one place on this screen where it
+  // already has a sentence to sit in. The header does not repeat the row's
+  // grid: the facts it adds -- both states spelled out, the operation's own
+  // message -- are prose, and the resource count is the line above the tree.
+  const when = ago(op?.finishedAt)
 
   const invalidate = () =>
     Promise.all([
@@ -109,9 +115,19 @@ export function AppDetailScreen() {
             header past the content; the untruncated text is in Events. */}
         {op && (
           <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-muted">
-            <span className={op.phase === 'Failed' ? 'text-degraded' : 'text-progressing'}>
-              {op.phase}
-            </span>
+            {/* ArgoCD leaves the phase empty on an operation it has finished
+                and moved on from, and the age alone was a sentence with no
+                subject: a line reading "1 day ago" says nothing about what
+                happened a day ago. The field is named for what it is —
+                the last operation, not the last successful deploy. */}
+            {op.phase ? (
+              <span className={op.phase === 'Failed' ? 'text-degraded' : 'text-progressing'}>
+                {op.phase}
+              </span>
+            ) : (
+              'Last operation'
+            )}
+            {when ? ` ${when.long}` : ''}
             {op.message ? ` — ${op.message}` : ''}
           </p>
         )}

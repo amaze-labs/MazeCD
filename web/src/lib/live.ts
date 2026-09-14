@@ -99,6 +99,16 @@ export function toApp(instance: string, a: AppDetail): App {
     sync: a.status.sync?.status ?? '',
     revision: a.status.sync?.revision ?? '',
     operationPhase: a.status.operationState?.phase,
+    operationFinishedAt: a.status.operationState?.finishedAt,
+    // Same distinction the Go mapping makes, for the same reason: no
+    // resources list at all is `undefined`, an empty one is 0, and a row
+    // draws those two differently. Resources that report no health object
+    // are not counted as unhealthy -- absence of reporting is not illness,
+    // and most resources on most applications report nothing.
+    totalResources: a.status.resources?.length,
+    unhealthyResources: a.status.resources?.filter(
+      (r) => r.health && r.health.status !== 'Healthy',
+    ).length,
   }
 }
 

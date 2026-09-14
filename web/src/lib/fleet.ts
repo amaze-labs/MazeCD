@@ -38,20 +38,20 @@ export function bucketOf(a: { health: Health; sync: SyncStatus }): Bucket {
 export const tinted = (bucket: Bucket) => bucket === 'Degraded' || bucket === 'OutOfSync'
 
 /**
- * How loudly a card speaks, as depth rather than as a stripe.
+ * What a card is made of, once the border carries the state.
  *
- * Every application is a card; urgency decides how far off the page it sits.
- * A degraded card is tinted toward its status hue and casts a real shadow, an
- * out-of-sync card is tinted and flat, and everything else rests at the card
- * surface with the faintest of edges. Eight cards on a screen, and the two
- * that are on fire are the two that come forward.
+ * The two buckets that need acting on keep their tinted ground, so a broken
+ * application still reads as a block from arm's length and not only as a
+ * coloured edge. What went is the ring and the drop shadow: the card now
+ * draws a real 1px border in its own status colour (see `AppRow`), and a
+ * ring under a border is the same statement twice, while a coloured shadow
+ * under both was the decoration that stood in for the information these rows
+ * were missing. Everything else rests at the card surface.
  */
 export function surfaceOf(bucket: Bucket): string {
-  if (bucket === 'Degraded')
-    return 'bg-surface-degraded shadow-[0_10px_24px_-12px_rgba(233,109,118,0.55)] ring-1 ring-degraded/25 active:brightness-110'
-  if (bucket === 'OutOfSync')
-    return 'bg-surface-outofsync ring-1 ring-outofsync/20 active:brightness-110'
-  return 'bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.4)] active:bg-raised'
+  if (bucket === 'Degraded') return 'bg-surface-degraded active:brightness-110'
+  if (bucket === 'OutOfSync') return 'bg-surface-outofsync active:brightness-110'
+  return 'bg-panel active:bg-raised'
 }
 
 export function countBy(apps: App[]): Record<Bucket, number> {
