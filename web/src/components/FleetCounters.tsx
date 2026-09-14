@@ -16,12 +16,12 @@ const ORDER: Bucket[] = ['Degraded', 'OutOfSync', 'Progressing', 'Suspended', 'U
  * Empty buckets are not drawn, so an untroubled fleet is one green chip
  * rather than six chips of zeroes, and each chip filters the list to itself.
  *
- * The row wraps rather than scrolls. Six chips cannot fit 393px, and a
- * horizontal scroller put `91 healthy` — the number that makes the other
- * five mean something — off the right-hand edge, which is the same mistake
- * the fleet bar made in a different costume. The number leads at full size
- * and the word follows at 11px, which is what gets six chips onto two rows
- * instead of three without dropping a word anybody needs to read.
+ * One row, scrolling, in urgency order with healthy last. Six worded chips
+ * cannot fit 393px, and wrapping them cost two rows of an 852px screen
+ * before the first application — furniture the operator pays for on arrival.
+ * What falls off the right-hand edge is `91 Healthy`, which is the least
+ * actionable number here: it is still counted, still tappable, still true,
+ * one swipe away. Nothing is hidden, and the space goes to applications.
  */
 export function FleetCounters({
   counts,
@@ -36,7 +36,7 @@ export function FleetCounters({
   if (shown.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by fleet state">
+    <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4" role="group" aria-label="Filter by fleet state">
       {shown.map((b) => {
         const s = stateStyle(b)
         const Icon = s.icon
@@ -56,7 +56,7 @@ export function FleetCounters({
           >
             <Icon size={14} strokeWidth={2.2} className={s.spin ? 'spin' : ''} aria-hidden="true" />
             <span className="font-semibold tabular-nums">{counts[b]}</span>
-            <span className="text-[11px] opacity-85">{s.label.toLowerCase()}</span>
+            <span className="text-[11px] opacity-85">{s.label}</span>
           </button>
         )
       })}

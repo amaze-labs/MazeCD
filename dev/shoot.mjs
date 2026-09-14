@@ -165,7 +165,7 @@ async function main() {
   // list is mostly made of: capture it, and prove the counter chips filter.
   await page.goto(base)
   await page.getByRole('heading', { name: 'Applications' }).waitFor()
-  await page.getByRole('button', { name: /healthy/ }).click()
+  await page.getByRole('button', { name: /healthy/i }).click()
   await page.waitForTimeout(200)
   await shot('06-apps-list-healthy.png')
 
