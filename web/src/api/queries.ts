@@ -2,9 +2,13 @@ import { QueryClient, useQuery } from '@tanstack/react-query'
 import { api, argoPath } from './client'
 import type { AppDetail, AppsResponse, InstanceInfo, ResourceTree } from './types'
 
-/** Foreground poll interval. refetchIntervalInBackground stays false, so the
- * timer is suspended while the tab is hidden and the battery is left alone. */
-const POLL_MS = 8_000
+/** Foreground poll interval, and no longer the way state arrives: `lib/live.ts`
+ * holds ArgoCD's watch streams open and writes into this cache. The poll is
+ * the fallback for an instance whose stream cannot be held open at all, which
+ * is why it is a third of a minute rather than eight seconds.
+ * refetchIntervalInBackground stays false, so the timer is suspended while the
+ * tab is hidden and the battery is left alone. */
+const POLL_MS = 30_000
 
 export function makeQueryClient() {
   return new QueryClient({

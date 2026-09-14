@@ -48,6 +48,14 @@ func newProxy(c *Client) *httputil.ReverseProxy {
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			// A browser that backgrounded the tab or navigated away cancels
+			// its watch stream, and every cancellation lands here. That is
+			// the client hanging up, not the instance failing: logging it as
+			// a failure would bury real ones under three warnings per screen
+			// lock, and there is nobody left to write a 502 body to.
+			if r.Context().Err() != nil {
+				return
+			}
 			slog.Warn("proxy failed", "instance", c.inst.Name, "path", r.URL.Path, "err", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)

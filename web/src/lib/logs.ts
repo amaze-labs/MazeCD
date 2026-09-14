@@ -1,4 +1,5 @@
 import { argoPath } from '../api/client'
+import { readLines } from './stream'
 import type { ResourceNode } from '../api/types'
 
 /**
@@ -41,19 +42,5 @@ export async function streamLogs(args: {
     }
   }
 
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-    for (const raw of lines) handleLine(raw)
-  }
-  // The server can close the connection mid-record (e.g. the pod restarts):
-  // whatever is left in `buffer` is the last line, just without its
-  // trailing newline. Run it through the same path rather than dropping it.
-  handleLine(buffer)
+  await readLines(res.body, handleLine)
 }

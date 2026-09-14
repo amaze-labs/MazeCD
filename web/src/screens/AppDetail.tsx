@@ -9,6 +9,7 @@ import { InstancePill, Revision, StatusBadge } from '../components/ui'
 import { ResourceSheet } from '../components/ResourceSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
+import { useLiveTree } from '../lib/live'
 import { EventsTab } from './tabs/EventsTab'
 import type { ResourceNode } from '../api/types'
 
@@ -18,6 +19,10 @@ export function AppDetailScreen() {
   const { instance = '', name = '' } = useParams()
   const detail = useAppDetail(instance, name)
   const tree = useResourceTree(instance, name)
+  // The application's own state already streams, fleet-wide, from the Shell.
+  // Its resources are the other half of "in real time", and ArgoCD watches
+  // them on an endpoint of their own.
+  useLiveTree(instance, name)
   const online = useOnline()
   const [tab, setTab] = useState<(typeof TABS)[number]>('Tree')
   const [selected, setSelected] = useState<ResourceNode | null>(null)

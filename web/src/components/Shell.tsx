@@ -1,11 +1,15 @@
 import { Link, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useOnline } from '../lib/online'
+import { useLiveApps } from '../lib/live'
 import { LayoutList, SlidersHorizontal } from 'lucide-react'
 
 export function Shell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const online = useOnline()
+  // One place, above every screen: the streams follow the session, not the
+  // route, so navigating between the list and a detail never drops them.
+  useLiveApps()
   const tab = (to: string, label: string, icon: ReactNode) => {
     const on = pathname === to
     return (
