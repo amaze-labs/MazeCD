@@ -49,13 +49,24 @@ type syncStatus struct {
 }
 
 type operationState struct {
-	Phase string `json:"phase"`
+	Phase      string `json:"phase"`
+	FinishedAt string `json:"finishedAt,omitempty"`
+}
+
+// listResourceStatus mirrors one entry of ArgoCD's status.resources[]: enough
+// to drive MazeCD's total/unhealthy resource counts.
+type listResourceStatus struct {
+	Kind      string  `json:"kind"`
+	Name      string  `json:"name"`
+	Namespace string  `json:"namespace"`
+	Health    *health `json:"health,omitempty"`
 }
 
 type status struct {
-	Health         health          `json:"health"`
-	Sync           syncStatus      `json:"sync"`
-	OperationState *operationState `json:"operationState,omitempty"`
+	Health         health               `json:"health"`
+	Sync           syncStatus           `json:"sync"`
+	OperationState *operationState      `json:"operationState,omitempty"`
+	Resources      []listResourceStatus `json:"resources"`
 }
 
 type application struct {
@@ -72,14 +83,48 @@ func toJSON(a *App) application {
 			Destination: destination{Server: "https://kubernetes.default.svc", Namespace: a.Name},
 		},
 		Status: status{
-			Health: health{Status: a.Health, Message: a.HealthMessage},
-			Sync:   syncStatus{Status: a.Sync, Revision: a.Revision},
+			Health:    health{Status: a.Health, Message: a.HealthMessage},
+			Sync:      syncStatus{Status: a.Sync, Revision: a.Revision},
+			Resources: resourceStatuses(a),
 		},
 	}
-	if a.OperationPhase != "" {
-		app.Status.OperationState = &operationState{Phase: a.OperationPhase}
+	app.Status.OperationState = &operationState{
+		Phase:      a.OperationPhase,
+		FinishedAt: a.OperationFinishedAt.Format(time.RFC3339),
 	}
 	return app
+}
+
+// resourceStatuses fakes status.resources[] for the applications list:
+// a.ResourceCount entries total. The first a.UnhealthyResources carry the
+// app's own health status and message, so a Degraded row's unhealthy count
+// has a believable cause. A third of the remainder report no health field at
+// all -- many resource kinds (ConfigMaps, Secrets, Services, ...) genuinely
+// never do -- and the rest are explicitly Healthy.
+func resourceStatuses(a *App) []listResourceStatus {
+	kinds := []string{
+		"Deployment", "ReplicaSet", "Pod", "Service", "ConfigMap", "Secret",
+		"ServiceAccount", "Role", "RoleBinding", "PersistentVolumeClaim",
+		"CronJob", "Ingress",
+	}
+	rest := a.ResourceCount - a.UnhealthyResources
+	noHealth := rest / 3
+
+	out := make([]listResourceStatus, a.ResourceCount)
+	for i := range out {
+		out[i] = listResourceStatus{
+			Kind: kinds[i%len(kinds)], Name: fmt.Sprintf("%s-%d", a.Name, i), Namespace: a.Name,
+		}
+		switch {
+		case i < a.UnhealthyResources:
+			out[i].Health = &health{Status: a.Health, Message: a.HealthMessage}
+		case i < a.UnhealthyResources+noHealth:
+			// no health field: many resource kinds never report one.
+		default:
+			out[i].Health = &health{Status: "Healthy"}
+		}
+	}
+	return out
 }
 
 type resourceRef struct {

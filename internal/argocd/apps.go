@@ -19,6 +19,36 @@ type App struct {
 	Sync           string `json:"sync"`
 	Revision       string `json:"revision"`
 	OperationPhase string `json:"operationPhase,omitempty"`
+
+	// OperationFinishedAt is status.operationState.finishedAt: when the
+	// application's last sync operation finished, success or failure. This is
+	// "how long has it been in its current state" for a row.
+	//
+	// Rejected: status.reconciledAt updates on every reconcile loop
+	// regardless of whether anything actually changed, so it would always
+	// read as "just now" and tell a person nothing. The newest
+	// status.history[].deployedAt is only appended on a *successful* sync, so
+	// an application whose latest operation is failing would silently show
+	// the time of the prior success instead -- which reads as healthier than
+	// it is. operationState.finishedAt is set after every attempt and stays
+	// populated until the next one, so it is named for what it is rather than
+	// implying a successful deploy. RFC3339; the frontend humanises it.
+	OperationFinishedAt string `json:"operationFinishedAt,omitempty"`
+
+	// TotalResources is len(status.resources). A pointer: nil means the
+	// instance never reported a resources list at all (status.resources was
+	// absent), 0 means it reported one and it was empty -- those are
+	// different facts about the application.
+	TotalResources *int `json:"totalResources,omitempty"`
+	// UnhealthyResources counts resources whose health is reported and is not
+	// "Healthy". A resource with no health object at all (most ConfigMaps,
+	// Secrets, Services, ...) does not count: absence of health reporting is
+	// not the same as being unhealthy, and most resources on most
+	// applications report no health, so counting them would put a false
+	// number on nearly every row. Only meaningful alongside TotalResources,
+	// so a plain int is enough -- it is 0 whenever there are no resources to
+	// begin with.
+	UnhealthyResources int `json:"unhealthyResources,omitempty"`
 }
 
 // InstanceError reports one instance that could not be queried.
@@ -58,8 +88,14 @@ type applicationList struct {
 				Revision string `json:"revision"`
 			} `json:"sync"`
 			OperationState *struct {
-				Phase string `json:"phase"`
+				Phase      string `json:"phase"`
+				FinishedAt string `json:"finishedAt"`
 			} `json:"operationState"`
+			Resources []struct {
+				Health *struct {
+					Status string `json:"status"`
+				} `json:"health"`
+			} `json:"resources"`
 		} `json:"status"`
 	} `json:"items"`
 }
@@ -105,6 +141,16 @@ func (r *Registry) Apps(ctx context.Context) AppsResponse {
 				}
 				if it.Status.OperationState != nil {
 					app.OperationPhase = it.Status.OperationState.Phase
+					app.OperationFinishedAt = it.Status.OperationState.FinishedAt
+				}
+				if it.Status.Resources != nil {
+					total := len(it.Status.Resources)
+					app.TotalResources = &total
+					for _, r := range it.Status.Resources {
+						if r.Health != nil && r.Health.Status != "Healthy" {
+							app.UnhealthyResources++
+						}
+					}
 				}
 				res.Apps = append(res.Apps, app)
 			}

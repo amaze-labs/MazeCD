@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"time"
 )
 
 // App is one fixture ArgoCD Application, kept in memory for the life of the
@@ -11,14 +12,17 @@ import (
 // main.go flips one per instance every few seconds); everything else is
 // fixed so successive `npm run shoot` runs produce comparable screenshots.
 type App struct {
-	Name           string
-	Instance       string
-	Project        string
-	Health         string // Healthy | Progressing | Degraded | Suspended | Unknown
-	HealthMessage  string
-	Sync           string // Synced | OutOfSync
-	OperationPhase string // "" | "Running"
-	Revision       string
+	Name                string
+	Instance            string
+	Project             string
+	Health              string // Healthy | Progressing | Degraded | Suspended | Unknown
+	HealthMessage       string
+	Sync                string // Synced | OutOfSync
+	OperationPhase      string // "" | "Running"
+	Revision            string
+	OperationFinishedAt time.Time // when the last sync finished; varies per app
+	ResourceCount       int       // status.resources length
+	UnhealthyResources  int       // of ResourceCount, how many report non-Healthy
 }
 
 // homeApps, ordersApps and utilityApps are real-looking fleet names: a
@@ -86,20 +90,54 @@ func revision(name string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// buildTime is the point every "how long ago" fixture value is computed
+// relative to. Fixed once at process start rather than re-read per request,
+// so a single `npm run shoot` run sees consistent ages.
+var buildTime = time.Now().UTC()
+
+// ageFor spreads an app's last-operation age from ~5 minutes to ~30 days,
+// deterministically from its name, so rows show genuinely different
+// "deployed" times instead of all reading "just now".
+func ageFor(name string) time.Duration {
+	sum := sha1.Sum([]byte(name))
+	minutes := 5 + int(sum[0])*170 // sum[0] in [0,255] -> ~5min .. ~30 days
+	return time.Duration(minutes) * time.Minute
+}
+
+// resourceCountFor spreads status.resources length from 3 to 20,
+// deterministically from the app name.
+func resourceCountFor(name string) int {
+	sum := sha1.Sum([]byte(name))
+	return 3 + int(sum[1])%18
+}
+
 func buildApps() []*App {
 	all := make([]*App, 0, 99)
 	add := func(instance string, names []string, project string) {
 		for _, n := range names {
 			a := &App{
-				Name:     n,
-				Instance: instance,
-				Project:  project,
-				Health:   "Healthy",
-				Sync:     "Synced",
-				Revision: revision(n),
+				Name:                n,
+				Instance:            instance,
+				Project:             project,
+				Health:              "Healthy",
+				Sync:                "Synced",
+				Revision:            revision(n),
+				OperationFinishedAt: buildTime.Add(-ageFor(n)),
+				ResourceCount:       resourceCountFor(n),
 			}
 			if o, ok := abnormal[n]; ok {
 				a.Health, a.Sync, a.OperationPhase, a.HealthMessage = o.Health, o.Sync, o.OperationPhase, o.HealthMessage
+			}
+			// Only apps actually on fire carry unhealthy resources -- most
+			// applications, including the merely OutOfSync/Progressing/
+			// Suspended/Unknown ones above, report zero.
+			if a.Health == "Degraded" {
+				sum := sha1.Sum([]byte(n))
+				unhealthy := 1 + int(sum[2])%3
+				if unhealthy > a.ResourceCount {
+					unhealthy = a.ResourceCount
+				}
+				a.UnhealthyResources = unhealthy
 			}
 			all = append(all, a)
 		}
