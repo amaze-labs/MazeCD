@@ -40,3 +40,52 @@ export type SyncResponse = {
  * body as well as the path, which is what ArgoCD's own client does. */
 export const syncApp = (instance: string, name: string, body: SyncRequest) =>
   api.post<SyncResponse>(argoPath(instance, `applications/${name}/sync`), { name, ...body })
+
+/** One entry of `applications/{name}/resource/actions`. `disabled` is a third
+ * state, not a second: ArgoCD offers the action for this kind but says it
+ * cannot run right now — nothing is paused, so nothing can be resumed. */
+export type ResourceAction = { name: string; disabled?: boolean }
+
+/** The five query parameters that name one resource inside an application.
+ * The live-manifest read and both action endpoints take exactly these, so
+ * they are built in one place. */
+export const resourceParams = (r: {
+  namespace: string
+  name: string
+  version: string
+  kind: string
+  group?: string
+}) =>
+  new URLSearchParams({
+    namespace: r.namespace,
+    resourceName: r.name,
+    version: r.version,
+    kind: r.kind,
+    group: r.group ?? '',
+  })
+
+export const listResourceActions = (instance: string, app: string, params: URLSearchParams) =>
+  api.get<{ actions?: ResourceAction[] }>(
+    argoPath(instance, `applications/${app}/resource/actions?${params}`),
+  )
+
+/**
+ * Run one action. Two endpoints do this and MazeCD uses the older of them:
+ * `/resource/actions` carries the resource in the query string and the action
+ * name as a bare JSON string body (grpc-gateway's `body:"action"`), while
+ * `/resource/actions/v2` takes one object and also carries parameters. V2 is
+ * the one that is not deprecated, and it is also the one an instance a couple
+ * of releases behind answers with 404 — MazeCD watches several instances at
+ * whatever version each of them happens to be, and MazeCD sends no
+ * parameters, so the shape that every version understands is the right one
+ * here. Switch when a parameterised action is wanted.
+ *
+ * `api.post` JSON-encodes whatever it is given, so a string argument is
+ * already the `"restart"` the endpoint expects.
+ */
+export const runResourceAction = (
+  instance: string,
+  app: string,
+  params: URLSearchParams,
+  action: string,
+) => api.post(argoPath(instance, `applications/${app}/resource/actions?${params}`), action)

@@ -99,10 +99,40 @@ async function shootTheme(theme) {
   await page.waitForTimeout(320) // let the toast finish sliding up
   await shot('05-app-detail-refreshed.png')
 
+  // A Pod, which is also the honest-emptiness case: no kind-specific actions
+  // exist for one, and most of a resource tree is Pods, Services and
+  // ConfigMaps. The section still appears and says so in a sentence.
   await page.locator('button', { hasText: 'photo-library-ml-7d9f8b6b8-x2k9v' }).first().click()
   await page.getByRole('dialog').waitFor()
   await page.getByText('GET /healthz').first().waitFor()
+  await page.getByText('offers no actions').waitFor()
   await shot('06-app-detail-sheet.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
+
+  /** A kind's group in the grouped view, by the band's own `group/kind`. */
+  const kindGroup = (kind) => page.locator('section', { has: page.getByText(kind, { exact: true }) })
+
+  // A kind that does offer actions: a Deployment carries restart and pause,
+  // plus resume *disabled*, which is the third state — offered for this kind,
+  // refused right now. `home` is not marked production, so each of these runs
+  // on the tap.
+  await kindGroup('apps/Deployment').getByRole('button').first().click()
+  await page.getByRole('dialog').waitFor()
+  await page.getByText('roll every pod').waitFor()
+  await shot('06b-resource-actions.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
+
+  // THE GUARDRAIL. `orders` is the instance marked `production: true` in
+  // dev/config.yaml, and the identical restart there asks first rather than
+  // firing under the thumb.
+  await page.goto(`${base}/apps/orders/orders-worker`)
+  await page.getByRole('tab', { name: 'Grouped' }).waitFor()
+  await kindGroup('apps/Deployment').getByRole('button').first().click()
+  await page.getByRole('dialog').waitFor()
+  await page.getByRole('button', { name: /^restart/ }).click()
+  await page.getByText(/marked production/).waitFor()
+  await shot('06c-resource-action-production.png')
+  await page.getByRole('button', { name: 'Close' }).last().click()
 
   // THE SYNC SHEET, on the application it exists for: doc-archive is
   // OutOfSync *and* manual — nothing will fix it until somebody presses this.
