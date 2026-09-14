@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "icons": "node scripts/icons.mjs",
-    "shoot": "node ../dev/shoot.mjs"
+    "shoot": "node ../dev/shoot.mjs",
+    "live": "node ../dev/live.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",

@@ -71,10 +71,13 @@ var abnormal = map[string]App{
 	"log-aggregation-pipeline-collector": {Health: "Unknown", Sync: "Synced"},
 }
 
-// demoApp is cycled by the stream/watch demo (see cycler in main.go). It is
-// deliberately not one of the pinned abnormal apps above, so the fixed
-// ratio the screenshots depend on never drifts while a run is in flight.
-const demoApp = "grafana"
+// demoApps names the one application per instance the stream/watch demo
+// cycles (see cycler in main.go). Each is deliberately not one of the pinned
+// abnormal apps above, so the fixed ratio the screenshots depend on never
+// drifts by more than the cycler's own one-per-instance. One per instance,
+// not one overall, so a harness can watch two instances keep updating while
+// the third one's stream is broken.
+var demoApps = map[string]string{"home": "grafana", "orders": "grafana-orders", "utility": "vault"}
 
 // revision fakes a deterministic 40-char git sha from the app name, so the
 // same fixture always shows the same "revision" across runs.

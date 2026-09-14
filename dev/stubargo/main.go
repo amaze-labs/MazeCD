@@ -103,9 +103,12 @@ type resourceNode struct {
 // detail screen's tree shows exactly what made the app red.
 func resourceTree(a *App) []resourceNode {
 	ns := a.Name
+	// Whatever the application says about itself, its workload says too --
+	// including the Progressing the demo cycler flips it into, which is what
+	// makes the resource-tree watch observably live.
 	deployHealth := &health{Status: "Healthy"}
-	if a.Health == "Degraded" {
-		deployHealth = &health{Status: "Degraded", Message: a.HealthMessage}
+	if a.Health != "Healthy" && a.Health != "" {
+		deployHealth = &health{Status: a.Health, Message: a.HealthMessage}
 	}
 
 	deploy := resourceRef{Group: "apps", Kind: "Deployment", Name: a.Name, Namespace: ns}
@@ -196,53 +199,60 @@ func logLines(a *App) []string {
 
 // ---- watch / stream ----------------------------------------------------
 
-// broadcaster fans one instance's application changes out to every open
-// /api/v1/stream/applications connection. This is the whole mechanism real
-// ArgoCD's watch uses too: an informer publishes, subscribers get a copy.
-type broadcaster struct {
-	mu   sync.Mutex
-	subs map[chan application]struct{}
+// change is one application's new state, rendered for both watch endpoints
+// at the moment it changed. Both projections are computed by the cycler, in
+// the cycler's goroutine, so a subscriber never reads the mutable *App.
+type change struct {
+	name string
+	app  application
+	tree []resourceNode
 }
 
-func newBroadcaster() *broadcaster { return &broadcaster{subs: map[chan application]struct{}{}} }
+// broadcaster fans one instance's application changes out to every open
+// watch connection -- /api/v1/stream/applications and the per-application
+// /api/v1/stream/applications/{name}/resource-tree alike. This is the whole
+// mechanism real ArgoCD's watch uses too: an informer publishes, subscribers
+// get a copy.
+type broadcaster struct {
+	mu   sync.Mutex
+	subs map[chan change]struct{}
+}
 
-func (b *broadcaster) subscribe() chan application {
-	ch := make(chan application, 8)
+func newBroadcaster() *broadcaster { return &broadcaster{subs: map[chan change]struct{}{}} }
+
+func (b *broadcaster) subscribe() chan change {
+	ch := make(chan change, 8)
 	b.mu.Lock()
 	b.subs[ch] = struct{}{}
 	b.mu.Unlock()
 	return ch
 }
 
-func (b *broadcaster) unsubscribe(ch chan application) {
+func (b *broadcaster) unsubscribe(ch chan change) {
 	b.mu.Lock()
 	delete(b.subs, ch)
 	b.mu.Unlock()
 	close(ch)
 }
 
-func (b *broadcaster) publish(a application) {
+func (b *broadcaster) publish(c change) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for ch := range b.subs {
 		select {
-		case ch <- a:
+		case ch <- c:
 		default: // a slow subscriber drops the tick rather than blocking the cycler
 		}
 	}
 }
 
-// cycle flips the instance's demo app between Healthy and Progressing every
+// cycle flips this instance's demo app between Healthy and Progressing every
 // 5s, forever, so a developer watching the stream (or just polling
 // /applications) sees a real state change without touching a real cluster.
-func cycle(apps []*App, bc *broadcaster) {
-	var demo *App
-	for _, a := range apps {
-		if a.Name == demoApp {
-			demo = a
-			break
-		}
-	}
+// Every instance has one, which is what makes "one instance's stream died,
+// the other two are still updating" a thing the harness can actually observe.
+func cycle(instance string, apps []*App, bc *broadcaster) {
+	demo := byName(apps, demoApps[instance])
 	if demo == nil {
 		return
 	}
@@ -253,7 +263,7 @@ func cycle(apps []*App, bc *broadcaster) {
 		} else {
 			demo.Health, demo.OperationPhase = "Healthy", ""
 		}
-		bc.publish(toJSON(demo))
+		bc.publish(change{name: demo.Name, app: toJSON(demo), tree: resourceTree(demo)})
 	}
 }
 
@@ -358,11 +368,50 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 		defer bc.unsubscribe(ch)
 		for {
 			select {
-			case app, ok := <-ch:
+			case c, ok := <-ch:
 				if !ok {
 					return
 				}
-				_ = enc.Encode(map[string]any{"result": map[string]any{"type": "MODIFIED", "application": app}})
+				_ = enc.Encode(map[string]any{"result": map[string]any{"type": "MODIFIED", "application": c.app}})
+				flusher.Flush()
+			case <-r.Context().Done():
+				return
+			}
+		}
+	})
+
+	// /stream/applications/{name}/resource-tree is ArgoCD's WatchResourceTree
+	// (same proto, same gateway annotation as Watch above). It sends the whole
+	// tree, not a delta: the current one on connect, then a fresh one every
+	// time this application changes.
+	mux.HandleFunc("GET /api/v1/stream/applications/{name}/resource-tree", func(w http.ResponseWriter, r *http.Request) {
+		a := byName(apps, r.PathValue("name"))
+		if a == nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(map[string]any{"result": map[string]any{"nodes": resourceTree(a)}})
+		flusher.Flush()
+
+		ch := bc.subscribe()
+		defer bc.unsubscribe(ch)
+		for {
+			select {
+			case c, ok := <-ch:
+				if !ok {
+					return
+				}
+				if c.name != a.Name {
+					continue
+				}
+				_ = enc.Encode(map[string]any{"result": map[string]any{"nodes": c.tree}})
 				flusher.Flush()
 			case <-r.Context().Done():
 				return
@@ -388,7 +437,7 @@ func main() {
 		name, port := name, ports[name]
 		instApps := grouped[name]
 		bc := newBroadcaster()
-		go cycle(instApps, bc)
+		go cycle(name, instApps, bc)
 
 		wg.Add(1)
 		go func() {
