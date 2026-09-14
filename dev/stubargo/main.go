@@ -72,9 +72,16 @@ type syncStatus struct {
 	Revision string `json:"revision,omitempty"`
 }
 
+// operationState mirrors status.operationState. Phase and finishedAt are all
+// the fixture used to need; the rest is what a sync leaves behind (see
+// operations.go) so a client can show what was run and what it did.
 type operationState struct {
-	Phase      string `json:"phase"`
-	FinishedAt string `json:"finishedAt,omitempty"`
+	Operation  *operationSpec       `json:"operation,omitempty"`
+	Phase      string               `json:"phase"`
+	Message    string               `json:"message,omitempty"`
+	SyncResult *syncOperationResult `json:"syncResult,omitempty"`
+	StartedAt  string               `json:"startedAt,omitempty"`
+	FinishedAt string               `json:"finishedAt,omitempty"`
 }
 
 // listResourceStatus mirrors one entry of ArgoCD's status.resources[]: enough
@@ -118,9 +125,14 @@ func toJSON(a *App) application {
 		Sync:      syncStatus{Status: a.Sync, Revision: a.Revision},
 		Resources: resourceStatuses(a),
 	}
-	app.Status.OperationState = &operationState{
-		Phase:      a.OperationPhase,
-		FinishedAt: a.OperationFinishedAt.Format(time.RFC3339),
+	if a.Op != nil {
+		op := *a.Op // the handlers own a.Op; the response gets a copy
+		app.Status.OperationState = &op
+	} else {
+		app.Status.OperationState = &operationState{
+			Phase:      a.OperationPhase,
+			FinishedAt: a.OperationFinishedAt.Format(time.RFC3339),
+		}
 	}
 	return app
 }
@@ -343,24 +355,61 @@ func (b *broadcaster) publish(c change) {
 	}
 }
 
+// instance is one fixture ArgoCD: its applications, its watchers, and the
+// single goroutine allowed to write to those applications. Handlers that
+// change an application (sync, resource actions) send the change down ops
+// rather than touching *App themselves, which is what keeps the "computed in
+// the cycler's goroutine" promise above true now that the fixture is no
+// longer read-only.
+type instance struct {
+	apps []*App
+	bc   *broadcaster
+	ops  chan func()
+}
+
+func newInstance(apps []*App) *instance {
+	return &instance{apps: apps, bc: newBroadcaster(), ops: make(chan func(), 16)}
+}
+
+// snapshot runs fn in that one goroutine and hands back what it returned, so
+// a handler never reads an *App mid-write. Every response built from mutable
+// fixture state goes through here; the streams use it for the state they send
+// on connect, and take everything after that from the broadcaster, which is
+// fed from the same goroutine.
+func snapshot[T any](i *instance, fn func() T) T {
+	done := make(chan T, 1)
+	i.ops <- func() { done <- fn() }
+	return <-done
+}
+
 // cycle flips this instance's demo app between Healthy and Progressing every
 // 5s, forever, so a developer watching the stream (or just polling
 // /applications) sees a real state change without touching a real cluster.
 // Every instance has one, which is what makes "one instance's stream died,
 // the other two are still updating" a thing the harness can actually observe.
-func cycle(instance string, apps []*App, bc *broadcaster) {
-	demo := byName(apps, demoApps[instance])
-	if demo == nil {
-		return
-	}
+// The same goroutine applies whatever the write handlers queue on ops.
+func (i *instance) cycle(name string) {
+	demo := byName(i.apps, demoApps[name])
+	tick := time.NewTicker(5 * time.Second)
+	defer tick.Stop()
 	for {
-		time.Sleep(5 * time.Second)
-		if demo.Health == "Healthy" {
-			demo.Health, demo.OperationPhase = "Progressing", "Running"
-		} else {
-			demo.Health, demo.OperationPhase = "Healthy", ""
+		select {
+		case op := <-i.ops:
+			op()
+		case <-tick.C:
+			if demo == nil {
+				continue
+			}
+			// A demo app that somebody synced keeps its operation; the
+			// cycler only owns the ones it has not been taken off.
+			demo.Op = nil
+			if demo.Health == "Healthy" {
+				demo.Health, demo.OperationPhase = "Progressing", "Running"
+			} else {
+				demo.Health, demo.OperationPhase = "Healthy", ""
+			}
+			i.bc.publish(change{name: demo.Name, app: toJSON(demo), tree: resourceTree(demo)})
 		}
-		bc.publish(change{name: demo.Name, app: toJSON(demo), tree: resourceTree(demo)})
 	}
 }
 
@@ -380,18 +429,23 @@ func byName(apps []*App, name string) *App {
 	return nil
 }
 
-func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
+func newInstanceMux(inst *instance) *http.ServeMux {
+	apps, bc := inst.apps, inst.bc
 	mux := http.NewServeMux()
+	registerOperations(mux, inst)
 
 	mux.HandleFunc("GET /api/v1/session/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		mustEncode(w, map[string]bool{"loggedIn": true})
 	})
 
 	mux.HandleFunc("GET /api/v1/applications", func(w http.ResponseWriter, r *http.Request) {
-		items := make([]application, len(apps))
-		for i, a := range apps {
-			items[i] = toJSON(a)
-		}
+		items := snapshot(inst, func() []application {
+			out := make([]application, len(apps))
+			for i, a := range apps {
+				out[i] = toJSON(a)
+			}
+			return out
+		})
 		mustEncode(w, map[string]any{"items": items})
 	})
 
@@ -401,7 +455,7 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 			http.NotFound(w, r)
 			return
 		}
-		mustEncode(w, toJSON(a))
+		mustEncode(w, snapshot(inst, func() application { return toJSON(a) }))
 	})
 
 	mux.HandleFunc("GET /api/v1/applications/{name}/resource-tree", func(w http.ResponseWriter, r *http.Request) {
@@ -410,7 +464,7 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 			http.NotFound(w, r)
 			return
 		}
-		mustEncode(w, map[string]any{"nodes": resourceTree(a)})
+		mustEncode(w, map[string]any{"nodes": snapshot(inst, func() []resourceNode { return resourceTree(a) })})
 	})
 
 	mux.HandleFunc("GET /api/v1/applications/{name}/events", func(w http.ResponseWriter, r *http.Request) {
@@ -419,7 +473,7 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 			http.NotFound(w, r)
 			return
 		}
-		mustEncode(w, map[string]any{"items": events(a)})
+		mustEncode(w, map[string]any{"items": snapshot(inst, func() []appEvent { return events(a) })})
 	})
 
 	// /logs streams newline-delimited JSON the way ArgoCD does:
@@ -433,7 +487,7 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 		w.Header().Set("Content-Type", "application/json")
 		flusher, _ := w.(http.Flusher)
 		enc := json.NewEncoder(w)
-		for _, line := range logLines(a) {
+		for _, line := range snapshot(inst, func() []string { return logLines(a) }) {
 			_ = enc.Encode(map[string]any{"result": map[string]string{"content": line}})
 			if flusher != nil {
 				flusher.Flush()
@@ -456,8 +510,14 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 			return
 		}
 		enc := json.NewEncoder(w)
-		for _, a := range apps {
-			_ = enc.Encode(map[string]any{"result": map[string]any{"type": "ADDED", "application": toJSON(a)}})
+		for _, app := range snapshot(inst, func() []application {
+			out := make([]application, len(apps))
+			for i, a := range apps {
+				out[i] = toJSON(a)
+			}
+			return out
+		}) {
+			_ = enc.Encode(map[string]any{"result": map[string]any{"type": "ADDED", "application": app}})
 		}
 		flusher.Flush()
 
@@ -494,7 +554,7 @@ func newInstanceMux(apps []*App, bc *broadcaster) *http.ServeMux {
 			return
 		}
 		enc := json.NewEncoder(w)
-		_ = enc.Encode(map[string]any{"result": map[string]any{"nodes": resourceTree(a)}})
+		_ = enc.Encode(map[string]any{"result": map[string]any{"nodes": snapshot(inst, func() []resourceNode { return resourceTree(a) })}})
 		flusher.Flush()
 
 		ch := bc.subscribe()
@@ -532,16 +592,15 @@ func main() {
 	var wg sync.WaitGroup
 	for _, name := range []string{"home", "orders", "utility"} {
 		name, port := name, ports[name]
-		instApps := grouped[name]
-		bc := newBroadcaster()
-		go cycle(name, instApps, bc)
+		inst := newInstance(grouped[name])
+		go inst.cycle(name)
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			log.Printf("stubargo: instance %-8s %d apps  http://%s", name, len(instApps), addr)
-			if err := http.ListenAndServe(addr, newInstanceMux(instApps, bc)); err != nil {
+			log.Printf("stubargo: instance %-8s %d apps  http://%s", name, len(inst.apps), addr)
+			if err := http.ListenAndServe(addr, newInstanceMux(inst)); err != nil {
 				log.Fatalf("stubargo: instance %s: %v", name, err)
 			}
 		}()

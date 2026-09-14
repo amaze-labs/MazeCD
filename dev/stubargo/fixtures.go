@@ -26,6 +26,12 @@ type App struct {
 	RepoURL             string    // spec.source.repoURL
 	TargetRevision      string    // spec.source.targetRevision
 	AutoSync            bool      // spec.syncPolicy.automated presence
+
+	// Op is the operation a sync left on this application (see
+	// operations.go). Nil for an application nobody has synced, which is how
+	// the fixture starts and what keeps the read-only responses byte-for-byte
+	// what they were. Written only by the instance's cycler goroutine.
+	Op *operationState
 }
 
 // homeApps, ordersApps and utilityApps are real-looking fleet names: a
