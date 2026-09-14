@@ -216,6 +216,24 @@ export function SyncSheet({
   const [revision, setRevision] = useState(detail.spec?.source?.targetRevision ?? '')
   const [picked, setPicked] = useState<Set<string>>(() => new Set(managed.map(refKey)))
   const [busy, setBusy] = useState(false)
+  /**
+   * THE DRY RUN'S VERDICT, AND WHY IT IS NOT IN THE RESPONSE.
+   *
+   * ArgoCD answers a sync request — dry run or not — with an application whose
+   * `status.operationState` it has just set to nil (`util/argo.SetAppOperation`,
+   * see `api/actions.ts`). Reading a result off that response gives a constant,
+   * which is what this sheet used to report as a receipt.
+   *
+   * The verdict is the operation the controller writes a second or two later,
+   * and it arrives here on its own: `detail` is the live `['app', …]` query
+   * that `lib/live.ts` feeds from ArgoCD's application watch. `waiting` holds
+   * the `finishedAt` of whatever operation was on the application *before* the
+   * request, which is the whole test for "this one is mine": nil first, then an
+   * operation that finished at a time the old one did not.
+   */
+  const [waiting, setWaiting] = useState<{ was: string | undefined } | null>(null)
+  const op = detail.status?.operationState
+  const verdict = waiting && op?.finishedAt && op.finishedAt !== waiting.was ? op : null
 
   const set = <K extends keyof Flags>(k: K, v: Flags[K]) => setFlags((f) => ({ ...f, [k]: v }))
   const chosen = sorted.filter((r) => picked.has(refKey(r)))
@@ -230,17 +248,21 @@ export function SyncSheet({
 
   async function submit() {
     setBusy(true)
+    setWaiting(null)
     try {
-      const res = await syncApp(instance, name, syncBody(flags, revision, chosen, total))
+      await syncApp(instance, name, syncBody(flags, revision, chosen, total))
       if (flags.dryRun) {
-        // A dry run changed nothing, so nothing is invalidated and the sheet
-        // stays open: the operator reads the verdict and can turn the flag
-        // off and commit for real without rebuilding the form.
-        const n = res?.status?.operationState?.syncResult?.resources?.length ?? 0
+        // A dry run changes nothing, so nothing is invalidated except the
+        // application itself — whose operationState the request just cleared
+        // upstream — and the sheet stays open: the operator reads the verdict
+        // here and can turn the flag off and commit for real without
+        // rebuilding the form. `waiting` is what makes the footer report it.
+        setWaiting({ was: op?.finishedAt })
+        await qc.invalidateQueries({ queryKey: ['app', instance, name] })
         toast(
           'ok',
-          'Dry run finished',
-          `Nothing was changed. ${instance} checked ${n} resource${n === 1 ? '' : 's'} of ${name}.`,
+          'Dry run requested',
+          `${instance} is running it against ${name} and changes nothing either way. The verdict appears in the sheet when it lands.`,
         )
         return
       }
@@ -461,7 +483,27 @@ export function SyncSheet({
         <p
           className={`mb-3 text-[12px] leading-[1.35] ${!online ? 'text-outofsync' : 'text-muted'}`}
         >
-          {online ? summary : 'Offline. Nothing can be sent until the phone is back on a network.'}
+          {!online ? (
+            'Offline. Nothing can be sent until the phone is back on a network.'
+          ) : verdict ? (
+            /* ArgoCD's own words for what its dry run did. The phase is the
+               one thing worth a colour here, and only when it is bad: this
+               screen's red already means Degraded, and a dry run that failed
+               is the same kind of news. */
+            <>
+              Dry run{' '}
+              <b
+                className={`font-normal ${verdict.phase === 'Succeeded' ? 'text-text' : 'text-degraded'}`}
+              >
+                {verdict.phase.toLowerCase()}
+              </b>
+              {verdict.message ? `: ${verdict.message}` : '.'} Nothing was changed.
+            </>
+          ) : waiting ? (
+            `Dry run requested. ${instance} reports the outcome here when it has run it; nothing is changed either way.`
+          ) : (
+            summary
+          )}
         </p>
         <div className="flex gap-2.5">
           <Button tone="faint" className="flex-1" onClick={onClose}>

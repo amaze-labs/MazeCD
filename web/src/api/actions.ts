@@ -24,22 +24,25 @@ export type SyncRequest = {
   syncOptions?: { items: string[] }
 }
 
-/** The application, as it stands after the request. For a dry run this is the
- * operation ArgoCD *would* have run: nothing upstream moved. */
-export type SyncResponse = {
-  status?: {
-    operationState?: {
-      phase?: string
-      message?: string
-      syncResult?: { resources?: { name?: string; status?: string; message?: string }[] }
-    }
-  }
-}
-
-/** The first call MazeCD makes that changes a cluster. `name` rides in the
- * body as well as the path, which is what ArgoCD's own client does. */
+/**
+ * The first call MazeCD makes that changes a cluster. `name` rides in the
+ * body as well as the path, which is what ArgoCD's own client does.
+ *
+ * **THE RESPONSE TELLS YOU NOTHING, AND A DRY RUN IS NO EXCEPTION.** ArgoCD's
+ * Sync handler builds the operation and hands it to `util/argo.SetAppOperation`
+ * (`server/application/application.go`), which sets
+ * `a.Status.OperationState = nil` before its Update and returns *that*
+ * application. So `status.operationState` is null on every sync response ever
+ * sent, and the only honest reading of one is "the request was accepted".
+ *
+ * What happened is written by the application controller a second or two
+ * later, into `status.operationState`, and reaches this app on the watch
+ * stream `lib/live.ts` already holds open — which is where `SyncSheet` waits
+ * for a dry run's verdict. Hence no response type: there is nothing in it to
+ * read.
+ */
 export const syncApp = (instance: string, name: string, body: SyncRequest) =>
-  api.post<SyncResponse>(argoPath(instance, `applications/${name}/sync`), { name, ...body })
+  api.post(argoPath(instance, `applications/${name}/sync`), { name, ...body })
 
 /** One entry of `applications/{name}/resource/actions`. `disabled` is a third
  * state, not a second: ArgoCD offers the action for this kind but says it
