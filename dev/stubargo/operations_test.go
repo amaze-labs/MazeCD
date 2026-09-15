@@ -380,3 +380,50 @@ func TestRunResourceAction(t *testing.T) {
 		t.Errorf("unknown app: status %d, want 404", code)
 	}
 }
+
+func del(t *testing.T, srv *httptest.Server, path string) int {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+path, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode
+}
+
+func TestTerminateStopsARunningSync(t *testing.T) {
+	syncDuration = 300 * time.Millisecond
+	t.Cleanup(func() { syncDuration = 2 * time.Second })
+	srv, _ := serve(t, "home")
+
+	// Nothing running yet: ArgoCD's InvalidArgument.
+	if code := del(t, srv, "/api/v1/applications/doc-archive/operation"); code != 400 {
+		t.Errorf("terminate with nothing running: status %d, want 400", code)
+	}
+
+	var out application
+	if code := post(t, srv, "/api/v1/applications/doc-archive/sync", fullSyncBody, &out); code != 200 {
+		t.Fatalf("sync: status %d", code)
+	}
+	if code := del(t, srv, "/api/v1/applications/doc-archive/operation"); code != 200 {
+		t.Fatalf("terminate: status %d", code)
+	}
+	var stopped application
+	get(t, srv, "/api/v1/applications/doc-archive", &stopped)
+	if stopped.Status.OperationState.Phase != "Failed" || stopped.Status.OperationState.Message != "Operation terminated" {
+		t.Fatalf("after terminate: %+v", stopped.Status.OperationState)
+	}
+	if stopped.Status.Sync.Status != "OutOfSync" {
+		t.Errorf("a terminated sync left the app %q, want OutOfSync", stopped.Status.Sync.Status)
+	}
+
+	// The controller's timer must not finish what was stopped.
+	time.Sleep(2 * syncDuration)
+	var later application
+	get(t, srv, "/api/v1/applications/doc-archive", &later)
+	if later.Status.OperationState.Phase != "Failed" {
+		t.Errorf("the stopped sync finished anyway: phase %q", later.Status.OperationState.Phase)
+	}
+}

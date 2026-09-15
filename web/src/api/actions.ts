@@ -44,6 +44,14 @@ export type SyncRequest = {
 export const syncApp = (instance: string, name: string, body: SyncRequest) =>
   api.post(argoPath(instance, `applications/${name}/sync`), { name, ...body })
 
+/**
+ * ArgoCD's TerminateOperation: stop the sync that is running right now. The
+ * controller marks it Failed with "Operation terminated"; whatever it had
+ * already applied stays applied. A 400 when nothing is running.
+ */
+export const terminateSync = (instance: string, name: string) =>
+  api.del(argoPath(instance, `applications/${name}/operation`))
+
 /** One entry of `applications/{name}/resource/actions`. `disabled` is a third
  * state, not a second: ArgoCD offers the action for this kind but says it
  * cannot run right now — nothing is paused, so nothing can be resumed. */

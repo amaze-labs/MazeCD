@@ -144,6 +144,10 @@ func startSync(a *App, req syncRequest) {
 // operation is the only thing it produces, and status.operationState is the
 // only place its verdict is ever reported.
 func finishSync(a *App, req syncRequest) {
+	// Terminated meanwhile: the controller's timer has nothing left to finish.
+	if a.Op == nil || a.Op.Phase != "Running" {
+		return
+	}
 	if !req.DryRun {
 		if a.Health == "Progressing" {
 			a.Health = "Healthy"
@@ -169,6 +173,25 @@ func finishSync(a *App, req syncRequest) {
 	op.FinishedAt = a.OperationFinishedAt.Format(time.RFC3339)
 	op.SyncResult = &syncOperationResult{Revision: a.Revision, Resources: syncedResources(a, req)}
 	a.Op = op
+}
+
+// terminateSync is what ArgoCD's controller does when asked to stop a running
+// operation: the phase goes to Failed with the one message it always uses,
+// and whatever the sync had already applied stays applied. Nothing to stop
+// is ArgoCD's InvalidArgument, reported to the caller as false.
+func terminateSync(a *App) bool {
+	if a.Op == nil || a.Op.Phase != "Running" {
+		return false
+	}
+	if a.Health == "Progressing" {
+		a.Health = "Healthy"
+	}
+	a.OperationPhase = "Failed"
+	a.OperationFinishedAt = time.Now().UTC()
+	a.Op.Phase = "Failed"
+	a.Op.Message = "Operation terminated"
+	a.Op.FinishedAt = a.OperationFinishedAt.Format(time.RFC3339)
+	return true
 }
 
 // syncedResources is the per-resource receipt of a sync: every managed
@@ -500,6 +523,23 @@ func registerOperations(mux *http.ServeMux, inst *instance) {
 			}
 		})
 		mustEncode(w, out)
+	})
+
+	// ArgoCD's TerminateOperation: an empty object on success, and a 400
+	// "Unable to terminate operation. No operation is in progress" when there
+	// is nothing running.
+	mux.HandleFunc("DELETE /api/v1/applications/{name}/operation", func(w http.ResponseWriter, r *http.Request) {
+		a := app(w, r, "name")
+		if a == nil {
+			return
+		}
+		stopped := false
+		mutate(inst, a, func() { stopped = terminateSync(a) })
+		if !stopped {
+			badRequest(w, "Unable to terminate operation. No operation is in progress")
+			return
+		}
+		mustEncode(w, map[string]any{})
 	})
 
 	mux.HandleFunc("GET /api/v1/applications/{applicationName}/managed-resources", func(w http.ResponseWriter, r *http.Request) {
