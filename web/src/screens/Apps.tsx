@@ -156,15 +156,13 @@ export function Apps() {
         <Button
           onClick={() => void refreshAll()}
           disabled={busy || !online || visible.length === 0}
-          className="!h-8 flex-none !px-3 !text-[11.5px] whitespace-nowrap"
+          className="!h-8 flex-none !px-3 !text-[11.5px]"
           aria-label={
             filter.instance ? `Refresh every application on ${filter.instance}` : 'Refresh every application'
           }
         >
           <RefreshCw size={12} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
-          <span className="max-w-[40vw] truncate">
-            {filter.instance ? `Refresh ${filter.instance}` : 'Refresh all'}
-          </span>
+          Refresh apps
         </Button>
       </div>
 
