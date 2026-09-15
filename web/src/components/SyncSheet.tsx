@@ -519,7 +519,7 @@ export function SyncSheet({
           that is always on screen, and it is the answer to "what am I about to
           do". Cancel is drawn in the ordinary hairline, Synchronize in the
           brighter one the design reserves for a control that acts. */}
-      <div className="sticky bottom-0 -mx-4 border-t border-rule bg-panel px-4 pt-3 pb-1">
+      <div className="pb-safe -mb-safe sticky bottom-0 -mx-4 border-t border-rule bg-panel px-4 pt-3">
         <p
           className={`mb-3 text-[12px] leading-[1.35] ${
             !online ? 'text-outofsync' : confirm ? 'text-[13px] text-text' : 'text-muted'

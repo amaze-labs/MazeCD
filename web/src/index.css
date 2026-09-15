@@ -223,6 +223,9 @@ body::before {
   pointer-events: none;
 }
 .pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+/* For a sticky footer inside a `pb-safe` box: eat the box's padding and
+   carry it yourself, so the footer's ground reaches the screen's edge. */
+.-mb-safe { margin-bottom: calc(-1 * max(0.75rem, env(safe-area-inset-bottom))); }
 
 /* One visible focus treatment everywhere, in text colour rather than a hue,
    so a focus ring is never mistaken for a status. */
