@@ -207,6 +207,18 @@ svg {
 }
 
 .pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+/* iOS 26 blurs whatever scrolls under the status bar of an installed web
+   app. Keep that band flat ground: a blurred flat colour is the same colour.
+   Sits under the sheets (z-50) and above the page. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: env(safe-area-inset-top);
+  background: var(--color-ink);
+  z-index: 45;
+  pointer-events: none;
+}
 .pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
 
 /* One visible focus treatment everywhere, in text colour rather than a hue,

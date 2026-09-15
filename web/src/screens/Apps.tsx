@@ -97,36 +97,23 @@ export function Apps() {
           instances and the legend do their job on arrival. */}
       <header className="pt-safe flex items-end justify-between gap-3 px-4 pb-3.5">
         <h1 className="text-[23px] font-semibold tracking-[-0.02em]">Applications</h1>
-        <div className="flex items-center gap-3">
-          <div className="t-mono pb-[3px] text-[11.5px] text-muted">
-            {/* A count of 0 beside a screen full of skeletons is a statement,
-                and it is the wrong one: nothing has been counted yet. */}
-            {apps.isLoading && !apps.data ? (
-              <span className="skel block h-3 w-16" aria-hidden="true" />
-            ) : refreshing ? (
-              'updating'
-            ) : filtered ? (
-              <>
-                <b className="font-semibold text-text">{visible.length}</b> of {all.length}
-              </>
-            ) : (
-              <>
-                <b className="font-semibold text-text">{all.length}</b> across {names.length || 1}{' '}
-                instance{names.length === 1 ? '' : 's'}
-              </>
-            )}
-          </div>
-          <button
-            onClick={() => void refreshAll()}
-            disabled={busy || !online || visible.length === 0}
-            className="flex h-9 w-9 items-center justify-center rounded-control text-text ring-1 ring-[var(--edge-strong)] active:bg-band disabled:opacity-40"
-            aria-label={
-              filter.instance ? `Refresh every application on ${filter.instance}` : 'Refresh every application'
-            }
-            title={filter.instance ? `Refresh ${filter.instance}` : 'Refresh all'}
-          >
-            <RefreshCw size={13} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
-          </button>
+        <div className="t-mono pb-[3px] text-[11.5px] text-muted">
+          {/* A count of 0 beside a screen full of skeletons is a statement,
+              and it is the wrong one: nothing has been counted yet. */}
+          {apps.isLoading && !apps.data ? (
+            <span className="skel block h-3 w-16" aria-hidden="true" />
+          ) : refreshing ? (
+            'updating'
+          ) : filtered ? (
+            <>
+              <b className="font-semibold text-text">{visible.length}</b> of {all.length}
+            </>
+          ) : (
+            <>
+              <b className="font-semibold text-text">{all.length}</b> across {names.length || 1}{' '}
+              instance{names.length === 1 ? '' : 's'}
+            </>
+          )}
         </div>
       </header>
 
@@ -140,23 +127,37 @@ export function Apps() {
           lives on is a place, and a place is a tab. The instance colours the
           configuration file happens to carry are not spent here — this
           palette spends colour only on status. */}
-      {names.length > 1 && (
-        <div className="t-mono flex gap-[22px] overflow-x-auto border-b border-rule px-4">
-          {['', ...names].map((n) => (
+      <div className="t-mono flex items-center gap-[22px] overflow-x-auto border-b border-rule px-4">
+        {names.length > 1 &&
+          ['', ...names].map((n) => (
             <button
               key={n || 'all'}
               aria-selected={filter.instance === n}
               role="tab"
               onClick={() => setFilter({ ...filter, instance: n })}
-              className={`-mb-px h-[46px] flex-none border-b-2 text-[12px] ${
+              className={`-mb-px h-[46px] flex-none self-stretch border-b-2 text-[12px] ${
                 filter.instance === n ? 'border-text text-text' : 'border-transparent text-muted'
               }`}
             >
               {n || 'all'}
             </button>
           ))}
-        </div>
-      )}
+        {/* Beside the thing it acts on: the selected instance, or all of
+            them. Named for what it will do, because an icon alone read as
+            "reload the list" — which is the pull gesture's job, not this
+            one's. */}
+        <Button
+          onClick={() => void refreshAll()}
+          disabled={busy || !online || visible.length === 0}
+          className="ml-auto !h-8 flex-none !px-3 !text-[11.5px] whitespace-nowrap"
+          aria-label={
+            filter.instance ? `Refresh every application on ${filter.instance}` : 'Refresh every application'
+          }
+        >
+          <RefreshCw size={12} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
+          {filter.instance ? `Refresh ${filter.instance}` : 'Refresh all'}
+        </Button>
+      </div>
 
       {/* The mockup does not draw this, because ninety-nine rows fit in a
           mockup and the eye is the filter there. It survives as a control in
