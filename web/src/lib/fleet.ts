@@ -1,4 +1,4 @@
-import type { App, Health, SyncStatus } from '../api/types'
+import type { App, Health, ResourceNode, SyncStatus } from '../api/types'
 
 /**
  * The six states the fleet is read in. Every application lands in exactly
@@ -68,4 +68,22 @@ export function countBy(apps: App[]): Record<Bucket, number> {
   }
   for (const a of apps) out[bucketOf(a)] += 1
   return out
+}
+
+/**
+ * ArgoCD stopped assessing the health of `argoproj.io/Application` resources
+ * in 1.8, so under an app-of-apps every child Application comes back from the
+ * resource tree with no health at all and the row draws `?`. MazeCD already
+ * knows that health — the child is an application of the same instance, and
+ * the fleet list carries it — so fill the gap from there. Health ArgoCD did
+ * report (an instance with the health customization enabled) is left alone.
+ */
+export function withFleetHealth(nodes: ResourceNode[], apps: App[], instance: string): ResourceNode[] {
+  const byKey = new Map<string, App>()
+  for (const a of apps) if (a.instance === instance) byKey.set(`${a.namespace}/${a.name}`, a)
+  return nodes.map((n) => {
+    if (n.health || n.group !== 'argoproj.io' || n.kind !== 'Application') return n
+    const a = byKey.get(`${n.namespace}/${n.name}`)
+    return a?.health ? { ...n, health: { status: a.health, message: a.healthMessage } } : n
+  })
 }

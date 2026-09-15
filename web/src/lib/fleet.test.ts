@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { bucketOf, countBy, healthLoud, syncLoud, surfaceOf, type Bucket } from './fleet'
-import type { App, Health, SyncStatus } from '../api/types'
+import { bucketOf, countBy, healthLoud, syncLoud, surfaceOf, withFleetHealth, type Bucket } from './fleet'
+import type { App, Health, ResourceNode, SyncStatus } from '../api/types'
 
 const HEALTHS: Health[] = ['Healthy', 'Progressing', 'Degraded', 'Suspended', 'Missing', 'Unknown', '']
 const SYNCS: SyncStatus[] = ['Synced', 'OutOfSync', 'Unknown', '']
@@ -63,5 +63,36 @@ describe('surfaceOf', () => {
     const tinted = (['Degraded', 'OutOfSync', 'Progressing', 'Suspended', 'Unknown', 'Healthy'] as Bucket[])
       .filter((b) => surfaceOf(b).includes('bg-surface-'))
     expect(tinted).toEqual(['Degraded', 'OutOfSync'])
+  })
+})
+
+describe('withFleetHealth', () => {
+  const node = (over: Partial<ResourceNode>): ResourceNode => ({
+    group: 'argoproj.io',
+    kind: 'Application',
+    version: 'v1alpha1',
+    name: 'inventory-db',
+    namespace: 'argocd',
+    ...over,
+  })
+  const fleet = [app('Degraded', 'Synced'), { ...app('Healthy', 'Synced'), instance: 'other' }]
+
+  test('an Application node ArgoCD left without health takes the health MazeCD already knows for that app', () => {
+    const [n] = withFleetHealth([node({})], fleet, 'home')
+    expect(n.health).toEqual({ status: 'Degraded', message: undefined })
+  })
+
+  test('health ArgoCD did report is never overwritten', () => {
+    const [n] = withFleetHealth([node({ health: { status: 'Progressing' } })], fleet, 'home')
+    expect(n.health?.status).toBe('Progressing')
+  })
+
+  test('only the same instance, name and namespace count; anything else stays unreported', () => {
+    const out = withFleetHealth(
+      [node({ namespace: 'elsewhere' }), node({ kind: 'Deployment', group: 'apps' })],
+      fleet,
+      'home',
+    )
+    expect(out.map((n) => n.health)).toEqual([undefined, undefined])
   })
 })

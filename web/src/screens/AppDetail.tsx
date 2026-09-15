@@ -11,7 +11,7 @@ import {
   RefreshCw,
   ServerOff,
 } from 'lucide-react'
-import { useAppDetail, useResourceTree } from '../api/queries'
+import { useAppDetail, useApps, useResourceTree } from '../api/queries'
 import { Groups, refKey, Tree } from '../components/Tree'
 import { AutoMark, Button, Callout, Fact, Rail, SyncWord } from '../components/ui'
 import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
@@ -23,7 +23,7 @@ import { ManifestsSheet } from '../components/ManifestsSheet'
 import { refreshApp } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
-import { healthLoud } from '../lib/fleet'
+import { healthLoud, withFleetHealth } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
 import { toast } from '../lib/toast'
 import { ago } from '../lib/ago'
@@ -37,6 +37,7 @@ export function AppDetailScreen() {
   const { instance = '', name = '' } = useParams()
   const detail = useAppDetail(instance, name)
   const tree = useResourceTree(instance, name)
+  const fleet = useApps()
   // The application's own state already streams, fleet-wide, from the Shell.
   // Its resources are the other half of "in real time", and ArgoCD watches
   // them on an endpoint of their own.
@@ -78,7 +79,10 @@ export function AppDetailScreen() {
   }, [status?.resources])
   const syncOf = (n: ResourceNode) => syncByKey.get(refKey(n))
 
-  const nodes = tree.data?.nodes ?? []
+  const nodes = useMemo(
+    () => withFleetHealth(tree.data?.nodes ?? [], fleet.data?.apps ?? [], instance),
+    [tree.data?.nodes, fleet.data?.apps, instance],
+  )
   const degraded = nodes.filter((n) => n.health?.status && healthLoud(n.health.status)).length
   const shown = onlyLoud
     ? nodes.filter((n) => (n.health?.status && healthLoud(n.health.status)) || syncOf(n) === 'OutOfSync')
