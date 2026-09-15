@@ -127,21 +127,25 @@ export function Apps() {
           lives on is a place, and a place is a tab. The instance colours the
           configuration file happens to carry are not spent here — this
           palette spends colour only on status. */}
-      <div className="t-mono flex items-center gap-[22px] overflow-x-auto border-b border-rule px-4">
-        {names.length > 1 &&
-          ['', ...names].map((n) => (
-            <button
-              key={n || 'all'}
-              aria-selected={filter.instance === n}
-              role="tab"
-              onClick={() => setFilter({ ...filter, instance: n })}
-              className={`-mb-px h-[46px] flex-none self-stretch border-b-2 text-[12px] ${
-                filter.instance === n ? 'border-text text-text' : 'border-transparent text-muted'
-              }`}
-            >
-              {n || 'all'}
-            </button>
-          ))}
+      <div className="t-mono flex items-center gap-3 border-b border-rule pr-4">
+        {/* Only the tabs scroll. The button sits outside the scrolling box,
+            or a long row of instance names pushes it off the right edge. */}
+        <div className="flex min-w-0 flex-1 gap-[22px] overflow-x-auto px-4">
+          {names.length > 1 &&
+            ['', ...names].map((n) => (
+              <button
+                key={n || 'all'}
+                aria-selected={filter.instance === n}
+                role="tab"
+                onClick={() => setFilter({ ...filter, instance: n })}
+                className={`-mb-px h-[46px] flex-none border-b-2 text-[12px] ${
+                  filter.instance === n ? 'border-text text-text' : 'border-transparent text-muted'
+                }`}
+              >
+                {n || 'all'}
+              </button>
+            ))}
+        </div>
         {/* Beside the thing it acts on: the selected instance, or all of
             them. Named for what it will do, because an icon alone read as
             "reload the list" — which is the pull gesture's job, not this
@@ -149,13 +153,15 @@ export function Apps() {
         <Button
           onClick={() => void refreshAll()}
           disabled={busy || !online || visible.length === 0}
-          className="ml-auto !h-8 flex-none !px-3 !text-[11.5px] whitespace-nowrap"
+          className="!h-8 flex-none !px-3 !text-[11.5px] whitespace-nowrap"
           aria-label={
             filter.instance ? `Refresh every application on ${filter.instance}` : 'Refresh every application'
           }
         >
           <RefreshCw size={12} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
-          {filter.instance ? `Refresh ${filter.instance}` : 'Refresh all'}
+          <span className="max-w-[40vw] truncate">
+            {filter.instance ? `Refresh ${filter.instance}` : 'Refresh all'}
+          </span>
         </Button>
       </div>
 
