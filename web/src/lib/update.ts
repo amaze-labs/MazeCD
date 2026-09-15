@@ -28,19 +28,6 @@ export function shouldReload(
 export const RELOAD_KEY = 'mazecd:reloaded-for-version'
 
 /**
- * Whether an update should be applied by handing off to the service worker,
- * rather than by a plain reload. A registration existing is not enough --
- * `updateServiceWorker`/`messageSkipWaiting` only does anything when a
- * worker is actually `waiting`; with none, the handoff is a silent no-op and
- * the plain reload is the only thing that will actually pick up the update.
- */
-export function shouldHandoffToWorker(
-  registration: Pick<ServiceWorkerRegistration, 'waiting'> | undefined,
-): boolean {
-  return !!registration?.waiting
-}
-
-/**
  * Offers a reload only when `shouldReload` allows it, and records the server
  * version in `sessionStorage` only at the moment the reload is actually
  * applied -- never merely offered. A reload the user (or the auto-apply
@@ -52,13 +39,13 @@ export function shouldHandoffToWorker(
  * toast is already standing) is harmless: it just re-arms an equivalent
  * apply function.
  *
- * `reload` is how the new build is actually brought in. A plain
- * location.reload() is only right when no service worker is in control: the
- * version poll usually wins the race against the worker's own update, and
- * reloading while the old worker still serves the precached shell returns
- * the same stale bundle -- after which the circuit breaker suppresses this
- * watcher for that version for good. The caller passes an apply that
- * activates the waiting worker when there is a registration.
+ * `reload` is how the new build is actually brought in, injectable for the
+ * tests. If the poll wins the race against the worker's own update, the old
+ * worker still serves the precached shell and this reload lands on the same
+ * stale bundle, after which the breaker silences this watcher for that
+ * version -- and that is fine: the worker is in 'autoUpdate' mode, so the
+ * new build activates the moment it is installed and reloads the page
+ * itself. This poll exists for the client with no worker at all.
  */
 export function checkVersion(
   serverVersion: string,
@@ -88,7 +75,9 @@ export function checkVersion(
  * Three independent mechanisms keep a client from getting stuck on an old
  * build: the service worker's own update check, an explicit periodic check on
  * load / foreground / every minute, and a comparison against the version the
- * server reports.
+ * server reports. The worker runs in 'autoUpdate' mode: when it finds a new
+ * build it activates it and reloads the page on its own, so nothing here
+ * has to ask it to. `onAvailable` is reached only by the version poll.
  */
 export function watchForUpdates(onAvailable: (apply: () => void) => void): () => void {
   // registerSW's onRegisteredSW fires once the registration promise resolves
@@ -100,15 +89,10 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
   let cancelled = false
   let swTimer: number | undefined
   let onSWVisible: (() => void) | undefined
-  let swRegistration: ServiceWorkerRegistration | undefined
 
-  const applySW = registerSW({
-    onNeedRefresh() {
-      onAvailable(() => applySW(true))
-    },
+  registerSW({
     onRegisteredSW(_url, registration) {
       if (cancelled || !registration) return
-      swRegistration = registration
       const check = () => {
         if (navigator.onLine) void registration.update().catch(() => {})
       }
@@ -125,13 +109,7 @@ export function watchForUpdates(onAvailable: (apply: () => void) => void): () =>
     try {
       const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' })
       const body = (await res.json()) as { version?: string }
-      // With a worker registered, hand off to it: it activates the waiting
-      // build and reloads once, instead of reloading into the shell the old
-      // worker is still serving. location.reload() stays the fallback for
-      // the case this poll genuinely exists for -- no worker at all.
-      checkVersion(body.version ?? '', __BUILD_VERSION__, onAvailable, () =>
-        shouldHandoffToWorker(swRegistration) ? applySW(true) : window.location.reload(),
-      )
+      checkVersion(body.version ?? '', __BUILD_VERSION__, onAvailable)
     } catch {
       // Offline or mid-deploy: the next tick tries again.
     }

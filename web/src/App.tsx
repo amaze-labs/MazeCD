@@ -5,7 +5,7 @@ import { Shell } from './components/Shell'
 import { Apps } from './screens/Apps'
 import { AppDetailScreen } from './screens/AppDetail'
 import { Settings } from './screens/Settings'
-import { UpdateToast } from './components/UpdateToast'
+import { AutoUpdate } from './components/AutoUpdate'
 import { Toasts } from './components/Toasts'
 
 function Routed() {
@@ -25,7 +25,7 @@ function Routed() {
         </Routes>
       </Shell>
       <Toasts />
-      <UpdateToast />
+      <AutoUpdate />
     </>
   )
 }

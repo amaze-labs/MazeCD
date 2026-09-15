@@ -168,16 +168,14 @@ async function main() {
   await deploy('1.0.1')
   const newBundle = await servedBundle()
   if (newBundle === oldBundle) throw new Error('both images ship the same bundle; nothing to measure')
-  const toast = await page.getByText('A newer build of MazeCD is ready.')
-    .waitFor({ timeout: 120_000 })
-    .then(() => ((Date.now() - t0) / 1000).toFixed(1), () => null)
-  console.log(`1. the toast appeared at ${toast === null ? 'NEVER' : `+${toast}s`}`)
+  // No toast to wait for any more: the worker is in autoUpdate mode and the
+  // only observable is the bundle the document is executing.
   const applied = await waitForBundle(page, newBundle, 180_000, t0)
   if (applied === null) {
     failures.push(`an open client was still running ${oldBundle} 180s after the deploy`)
-    console.log(`   the open client is STILL RUNNING ${await runningBundle(page)}`)
+    console.log(`1. the open client is STILL RUNNING ${await runningBundle(page)}`)
   } else {
-    console.log(`   the open client is running the new bundle at +${applied}s`)
+    console.log(`1. the open client is running the new bundle at +${applied}s`)
   }
 
   // ---- 2. the case that already worked, and must keep working ------------

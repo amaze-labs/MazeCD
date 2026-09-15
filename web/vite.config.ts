@@ -9,9 +9,17 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      // 'prompt' rather than 'autoUpdate': src/lib/update.ts drives the
-      // reload so an operation in flight is never interrupted.
-      registerType: 'prompt',
+      // 'autoUpdate', on purpose and after trying 'prompt': a new build
+      // activates the moment it is installed (skipWaiting), takes the open
+      // pages (clientsClaim) and the client reloads on `activated`. The
+      // prompt flow left the operator's iPhone showing the "reload" toast on
+      // every deploy: a worker already waiting when the page registers
+      // reports its takeover without `isUpdate`, and the prompt-mode client
+      // only reloads on `isUpdate`, so the auto-apply activated the new
+      // worker and then nothing happened. A reload mid-action is the price,
+      // and the owner chose to pay it. src/lib/update.ts still polls the
+      // server's version as the fallback for a client with no worker.
+      registerType: 'autoUpdate',
       filename: 'sw.js',
       manifest: {
         name: 'MazeCD',
@@ -28,6 +36,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // What 'autoUpdate' implies, spelled out so nobody has to know.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
