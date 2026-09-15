@@ -28,6 +28,9 @@ export default defineConfig({
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
+        // Honoured by Android. iOS ignores it for an installed web app and
+        // offers no API to lock it; there, this is a statement of intent.
+        orientation: 'portrait',
         start_url: '/',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
