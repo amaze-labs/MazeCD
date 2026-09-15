@@ -206,10 +206,13 @@ svg {
   display: block;
 }
 
-.pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
-/* iOS 26 blurs whatever scrolls under the status bar of an installed web
-   app. Keep that band flat ground: a blurred flat colour is the same colour.
-   Sits under the sheets (z-50) and above the page. */
+/* The inset plus 20px, not the inset alone: iOS 26 blurs the band under the
+   status bar of an installed web app, and the blur reaches a little past the
+   inset — a title set right at the edge left a smeared halo of itself above
+   it. Content starts below the blur's reach instead. */
+.pt-safe { padding-top: max(0.75rem, calc(env(safe-area-inset-top) + 20px)); }
+/* And the band itself stays flat ground: a blurred flat colour is the same
+   colour. Sits under the sheets (z-50) and above the page. */
 body::before {
   content: '';
   position: fixed;

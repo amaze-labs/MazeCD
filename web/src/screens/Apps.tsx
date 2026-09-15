@@ -128,9 +128,12 @@ export function Apps() {
           configuration file happens to carry are not spent here — this
           palette spends colour only on status. */}
       <div className="t-mono flex items-center gap-3 border-b border-rule pr-4">
-        {/* Only the tabs scroll. The button sits outside the scrolling box,
-            or a long row of instance names pushes it off the right edge. */}
-        <div className="flex min-w-0 flex-1 gap-[22px] overflow-x-auto px-4">
+        {/* Only the tabs scroll, sideways only and with no indicator: iOS
+            draws one for every overflowing axis, and a tab 1px taller than
+            its box made the row scroll vertically too. The button sits
+            outside the scrolling box, or a long row of instance names pushes
+            it off the right edge. */}
+        <div className="flex min-w-0 flex-1 gap-[22px] overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {names.length > 1 &&
             ['', ...names].map((n) => (
               <button
@@ -138,7 +141,7 @@ export function Apps() {
                 aria-selected={filter.instance === n}
                 role="tab"
                 onClick={() => setFilter({ ...filter, instance: n })}
-                className={`-mb-px h-[46px] flex-none border-b-2 text-[12px] ${
+                className={`h-[46px] flex-none border-b-2 text-[12px] ${
                   filter.instance === n ? 'border-text text-text' : 'border-transparent text-muted'
                 }`}
               >
