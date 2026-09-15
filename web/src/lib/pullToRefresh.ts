@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
   const [pull, setPull] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  const start = useRef<number | null>(null)
+  const start = useRef<{ x: number; y: number } | null>(null)
   const pullRef = useRef(0)
   const refreshingRef = useRef(false)
   const onRefreshRef = useRef(onRefresh)
@@ -28,11 +28,22 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
     const threshold = 70
 
     const onStart = (e: TouchEvent) => {
-      start.current = window.scrollY <= 0 ? e.touches[0].clientY : null
+      const t = e.touches[0]
+      start.current = window.scrollY <= 0 ? { x: t.clientX, y: t.clientY } : null
     }
     const onMove = (e: TouchEvent) => {
       if (start.current === null) return
-      const delta = e.touches[0].clientY - start.current
+      const t = e.touches[0]
+      const delta = t.clientY - start.current.y
+      // A finger scrolling the instance tabs sideways drifts down a few
+      // pixels too; that is not a pull. Once the gesture has a direction,
+      // a sideways one disarms this for the rest of the touch.
+      if (Math.abs(t.clientX - start.current.x) > Math.abs(delta)) {
+        start.current = null
+        pullRef.current = 0
+        setPull(0)
+        return
+      }
       const next = delta > 0 ? Math.min(delta, threshold * 1.5) : 0
       pullRef.current = next
       setPull(next)
