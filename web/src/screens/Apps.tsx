@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PlugZap, RefreshCw, SearchX, ServerOff, Unplug } from 'lucide-react'
 import { useApps, useInstances } from '../api/queries'
 import { refreshApp } from '../api/actions'
@@ -18,7 +19,18 @@ type Filter = { instance: string; state: Bucket | ''; q: string }
 export function Apps() {
   const apps = useApps()
   const instances = useInstances()
-  const [filter, setFilter] = useState<Filter>({ instance: '', state: '', q: '' })
+  // The filter lives in the URL, so opening an application and coming back
+  // lands on the same tab and the same search rather than on "all". Replace,
+  // not push: every keystroke in the search box would otherwise be a history
+  // entry to back out of.
+  const [params, setParams] = useSearchParams()
+  const filter: Filter = {
+    instance: params.get('instance') ?? '',
+    state: (params.get('state') ?? '') as Filter['state'],
+    q: params.get('q') ?? '',
+  }
+  const setFilter = (f: Filter) =>
+    setParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '')), { replace: true })
   const [busy, setBusy] = useState(false)
   const online = useOnline()
 
@@ -52,7 +64,10 @@ export function Apps() {
     const list = all.filter((a) => {
       if (filter.instance && a.instance !== filter.instance) return false
       if (filter.state && bucketOf(a) !== filter.state) return false
-      if (filter.q && !a.name.toLowerCase().includes(filter.q.toLowerCase())) return false
+      if (filter.q) {
+        const q = filter.q.toLowerCase()
+        if (![a.name, a.project, a.destNamespace].some((s) => s.toLowerCase().includes(q))) return false
+      }
       return true
     })
     // Triage order: broken first, then out of sync, then alphabetical.
@@ -62,7 +77,7 @@ export function Apps() {
         Number(b.sync === 'OutOfSync') - Number(a.sync === 'OutOfSync') ||
         a.name.localeCompare(b.name),
     )
-  }, [all, filter])
+  }, [all, filter.instance, filter.state, filter.q])
 
   const filtered = filter.instance !== '' || filter.state !== '' || filter.q !== ''
 
@@ -174,7 +189,7 @@ export function Apps() {
         <input
           value={filter.q}
           onChange={(e) => setFilter({ ...filter, q: e.target.value })}
-          placeholder="find an application"
+          placeholder="find by name, project or namespace"
           aria-label="Find an application"
           className="t-mono h-12 w-full rounded-control px-3.5 text-[12.5px] ring-1 ring-rule outline-none placeholder:text-dim"
         />
