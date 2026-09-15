@@ -203,6 +203,23 @@ async function shootTheme(theme) {
   await page.getByText('identical').scrollIntoViewIfNeeded()
   await page.waitForTimeout(150)
   await shot('18b-app-detail-diff-one-sided.png')
+
+  // THE SHEET RE-READING ITSELF. The diff is a snapshot and now says so, and
+  // the only state of that line nobody would ever see on a stub answering in
+  // three milliseconds is the one between the tap and the new reading: the
+  // control turned into its own progress, with the old answer still on screen
+  // rather than replaced by a skeleton.
+  await stall(page, '**/managed-resources*', 6_000)
+  await page.getByRole('dialog').getByRole('button', { name: 'Read again' }).click()
+  await page.getByRole('button', { name: 'Reading' }).waitFor()
+  await page.getByRole('dialog').getByText('snapshot, taken').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(150)
+  await shot('18d-app-detail-diff-rereading.png')
+  // Let the stalled read land before the route is torn down: unrouting while
+  // `stall` is still asleep leaves it calling continue() on a route playwright
+  // has already handled, which is an uncaught rejection and kills the run.
+  await page.getByRole('button', { name: 'Read again' }).waitFor()
+  await page.unroute('**/managed-resources*')
   await page.getByRole('button', { name: 'Close' }).last().click()
 
   // The honest empty state: an application with nothing out of sync still
