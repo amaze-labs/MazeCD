@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
@@ -8,6 +8,7 @@ import {
   GitCompareArrows,
   ListFilter,
   ListTree,
+  OctagonX,
   RefreshCw,
   ServerOff,
 } from 'lucide-react'
@@ -20,7 +21,7 @@ import { ResourceSheet } from '../components/ResourceSheet'
 import { SyncSheet } from '../components/SyncSheet'
 import { DiffSheet } from '../components/DiffSheet'
 import { ManifestsSheet } from '../components/ManifestsSheet'
-import { refreshApp } from '../api/actions'
+import { refreshApp, terminateSync } from '../api/actions'
 import { useOnline } from '../lib/online'
 import { useLiveTree } from '../lib/live'
 import { healthLoud, withFleetHealth } from '../lib/fleet'
@@ -47,6 +48,8 @@ export function AppDetailScreen() {
   const [onlyLoud, setOnlyLoud] = useState(false)
   const [selected, setSelected] = useState<ResourceNode | null>(null)
   const [menu, setMenu] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const navigate = useNavigate()
   const [events, setEvents] = useState(false)
   const [sync, setSync] = useState(false)
   const [diff, setDiff] = useState(false)
@@ -61,6 +64,41 @@ export function AppDetailScreen() {
   const auto = spec?.syncPolicy?.automated != null
 
   const qc = useQueryClient()
+
+  /**
+   * A child Application in an app-of-apps is an application of this same
+   * instance, and the fleet already has a screen for it. Everything else
+   * opens as a resource.
+   */
+  const pick = (n: ResourceNode) => {
+    if (n.group === 'argoproj.io' && n.kind === 'Application') {
+      navigate(`/apps/${encodeURIComponent(instance)}/${encodeURIComponent(n.name)}`)
+    } else {
+      setSelected(n)
+    }
+  }
+
+  /**
+   * Stop the sync that is running. ArgoCD marks it Failed with "Operation
+   * terminated" and leaves applied what was applied; the watch stream brings
+   * the new state in. Offered only while one is running, and only after a
+   * second tap: from a phone this is the action for a sync that has hung,
+   * and the row says so before it acts.
+   */
+  async function stop() {
+    setBusy(true)
+    try {
+      await terminateSync(instance, name)
+      await qc.invalidateQueries({ queryKey: ['app', instance, name] })
+      toast('ok', 'Stop requested', `${instance} is terminating the running sync of ${name}.`)
+    } catch (e) {
+      toast('fail', 'That did not go through', e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+      setStopping(false)
+      setMenu(false)
+    }
+  }
 
   /**
    * The sync half of a resource's two marks.
@@ -284,14 +322,17 @@ export function AppDetailScreen() {
           {degraded > 0 && <span className="text-degraded">{degraded} degraded</span>}
         </span>
         <span className="flex items-center gap-2.5">
+          {/* Named, because three bars alone did not say "only what needs
+              looking at": the word is what the filter keeps. */}
           <button
             onClick={() => setOnlyLoud(!onlyLoud)}
             aria-pressed={onlyLoud}
             aria-label="Show only resources that need looking at"
-            className="grid size-12 flex-none place-items-center rounded-control text-muted ring-1 ring-rule"
+            className="t-mono flex h-12 flex-none items-center gap-2 rounded-control px-3 text-[12px] text-muted ring-1 ring-rule"
             style={onlyLoud ? { boxShadow: 'inset 0 0 0 1px var(--edge-active)', color: 'var(--color-text)' } : undefined}
           >
             <ListFilter size={15} strokeWidth={1.3} aria-hidden="true" />
+            issues
           </button>
           {/* A pill containing two pills, the active one carrying an inset ink
               ring rather than a fill. */}
@@ -339,14 +380,34 @@ export function AppDetailScreen() {
         ) : tree.isLoading && !tree.data ? (
           <TreeSkeleton />
         ) : view === 'grouped' ? (
-          <Groups nodes={shown} syncOf={syncOf} onSelect={setSelected} />
+          <Groups nodes={shown} syncOf={syncOf} onSelect={pick} />
         ) : (
-          <Tree nodes={shown} onSelect={setSelected} />
+          <Tree nodes={shown} onSelect={pick} />
         )}
       </div>
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title={name}>
+      <Sheet
+        open={menu}
+        onClose={() => {
+          setMenu(false)
+          setStopping(false)
+        }}
+        title={name}
+      >
         <div className="-mx-4">
+          {op?.phase === 'Running' && (
+            <button
+              onClick={() => (stopping ? void stop() : setStopping(true))}
+              disabled={!online || busy}
+              className="flex h-14 w-full items-center gap-2.5 border-b border-rule px-4 text-left text-[14px] text-degraded disabled:opacity-40"
+            >
+              <OctagonX size={15} strokeWidth={1.4} aria-hidden="true" />
+              {stopping ? 'Tap again to stop the sync' : 'Stop sync'}
+              <span className="t-mono ml-auto text-[11px] text-dim">
+                {stopping ? 'what is applied stays' : 'a sync is running'}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => {
               setMenu(false)
