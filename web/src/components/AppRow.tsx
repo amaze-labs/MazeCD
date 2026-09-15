@@ -51,8 +51,8 @@ export function AppRow({ app }: { app: App }) {
         <div className="flex items-baseline justify-between gap-2.5">
           <span className="t-name truncate text-[15.5px]">{app.name}</span>
           <span
-            className={`flex-none text-[13px] whitespace-nowrap ${loud ? 'font-[560]' : 'font-medium text-muted'}`}
-            style={loud ? { color: s.color } : undefined}
+            className={`flex-none text-[13px] whitespace-nowrap ${loud ? 'font-[560]' : 'font-medium'}`}
+            style={{ color: s.color }}
           >
             {s.label}
           </span>

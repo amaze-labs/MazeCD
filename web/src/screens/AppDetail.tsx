@@ -175,7 +175,7 @@ export function AppDetailScreen() {
               <div className="t-mono flex flex-wrap items-center gap-[9px] text-[12px]">
                 <span
                   className="font-sans text-[14px] font-[560]"
-                  style={{ color: healthLoud(health) ? stateStyle(health).color : undefined }}
+                  style={{ color: stateStyle(health).color }}
                 >
                   {stateStyle(health).label}
                 </span>

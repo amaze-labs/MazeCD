@@ -59,15 +59,16 @@ export function Rail({ health, auto }: { health: string; auto: boolean }) {
 }
 
 /**
- * Sync, as a word in the ink it deserves: `Synced` muted, `OutOfSync` amber.
- * Always drawn — the calm case is a reading, not an absence.
+ * Sync, as a word in ArgoCD's colour for it: `Synced` green, `OutOfSync`
+ * amber, `Unknown` dim. Always drawn — the calm case is a reading, not an
+ * absence.
  */
 export function SyncWord({ sync }: { sync: string }) {
   const out = sync === 'OutOfSync'
   const unknown = sync !== 'Synced' && !out
   return (
     <span
-      className={`flex items-center gap-[5px] ${out ? 'text-outofsync' : unknown ? 'text-dim' : 'text-muted'}`}
+      className={`flex items-center gap-[5px] ${out ? 'text-outofsync' : unknown ? 'text-dim' : 'text-healthy'}`}
     >
       {out ? (
         <GitCompareArrows size={11} strokeWidth={1.3} aria-hidden="true" />
@@ -113,10 +114,11 @@ export function AutoMark({ auto, verbose }: { auto: boolean; verbose?: boolean }
 
 /**
  * The other half of the language, for a resource: two marks in a fixed right
- * column, a heart for health and a circled check for sync. Grey when
- * ordinary, coloured when not, and a dim `?` where ArgoCD did not report that
- * state at all — which for sync is most of a resource tree, since only the
- * application's own managed resources carry one.
+ * column, a heart for health and a circled check for sync, each in ArgoCD's
+ * own colour for the state — green Healthy is a reading too, not an absence —
+ * and a violet `?` where ArgoCD did not report that state at all, which for
+ * sync is most of a resource tree, since only the application's own managed
+ * resources carry one.
  *
  * `?` is not "unknown health". It is "nobody said", and that is a different
  * claim from a status ArgoCD named Unknown.
@@ -124,15 +126,18 @@ export function AutoMark({ auto, verbose }: { auto: boolean; verbose?: boolean }
 export function Mark({ state, icon: Icon }: { state: string | undefined; icon: typeof Heart }) {
   if (!state) {
     return (
-      <span className="t-mono w-[11px] text-center text-[12px] leading-none text-dim" title="not reported">
+      <span
+        className="t-mono w-[11px] text-center text-[12px] leading-none"
+        style={{ color: 'var(--color-suspended)' }}
+        title="not reported"
+      >
         ?
       </span>
     )
   }
   const s = stateStyle(state)
-  const ordinary = state === 'Healthy' || state === 'Synced'
   return (
-    <span style={{ color: ordinary ? undefined : s.color }} title={s.label}>
+    <span style={{ color: s.color }} title={s.label}>
       <span className="sr-only">{s.label}</span>
       <Icon size={12} strokeWidth={1.25} aria-hidden="true" />
     </span>

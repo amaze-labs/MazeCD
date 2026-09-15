@@ -190,7 +190,11 @@ export function Tree({
           className="flex h-11 w-full items-center gap-[9px] text-left"
           title={health ? stateStyle(health).label : 'health not reported'}
         >
-          <span className={`flex-none ${bad ? 'text-degraded' : 'text-dim'}`} aria-hidden="true">
+          <span
+            className="flex-none"
+            style={{ color: health ? stateStyle(health).color : 'var(--color-suspended)' }}
+            aria-hidden="true"
+          >
             <Heart size={12} strokeWidth={1.25} />
           </span>
           <span className={`truncate text-[14px] font-medium ${bad ? 'text-degraded' : ''}`}>
