@@ -1,31 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="MazeCD">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="MazeCD">
   <title>MazeCD</title>
-  <!-- MazeCD's own mark, held in ArgoCD's frame.
-
-       The rails are the one thing this interface draws that nobody else does:
-       down the left of every row, colour is health and texture is whether
-       ArgoCD reconciles the application by itself. Solid self-heals; dashed
-       waits for a person. The circle is ArgoCD's own idiom for a status, and
-       putting the rails inside it says what MazeCD is — a client of that
-       platform, not the platform.
-
-       The colour is ArgoCD's orange, chosen deliberately over MazeCD's
-       magenta. Two costs were weighed and accepted: at this distance from the
-       platform's own mark, colour is what tips a family resemblance towards
-       looking official; and it is the neighbour of the amber that means
-       OutOfSync inside the app, which is the one place this interface
-       otherwise reserves colour for state. The icon never appears beside a
-       row, so the second cost stays outside the screen.
-
-       Everything sits within 171px of the centre, inside the 204.8px radius
-       Android leaves uncropped on a maskable icon — so the mark needs no
-       inset and is rendered at full size for every target. -->
-  <rect width="512" height="512" rx="112" fill="#000000"/>
-  <circle cx="256" cy="256" r="156" fill="none" stroke="#ef7b4d" stroke-width="30" opacity="0.5"/>
-  <rect x="212" y="156" width="36" height="200" rx="18" fill="#ef7b4d"/>
-  <g fill="#ef7b4d">
-    <rect x="276" y="156" width="36" height="52" rx="18"/>
-    <rect x="276" y="230" width="36" height="52" rx="18"/>
-    <rect x="276" y="304" width="36" height="52" rx="18"/>
+  <rect width="32" height="32" rx="7" fill="#0c1118"/>
+  <g transform="translate(4 4) scale(0.923)" fill="none" stroke="#ef7b4d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.5" y="2.5" width="21" height="21" rx="6"/>
+    <path d="M2.5 9h6 M8 23.5V16h7V8.5 M11.5 12l3.5-3.5 3.5 3.5"/>
   </g>
 </svg>

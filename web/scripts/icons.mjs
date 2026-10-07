@@ -6,9 +6,13 @@ import sharp from 'sharp'
 
 const pub = path.resolve(fileURLToPath(new URL('../public', import.meta.url)))
 const src = path.join(pub, 'favicon.svg')
-const INK = { r: 0, g: 0, b: 0, alpha: 1 }
+// The tile's own colour, so a flattened corner is indistinguishable from it.
+const TILE = '#0c1118'
 
-const render = (size) => sharp(src).resize(size, size)
+// The SVG is a 32-unit viewBox with no width/height, which sharp would raster
+// at 32px and then upscale into mush. Rasterise it at 512px (72dpi × 16)
+// before resizing down.
+const render = (size) => sharp(src, { density: 72 * 16 }).resize(size, size)
 const write = (img, name) => img.png().toFile(path.join(pub, name))
 
 // The tab fallback keeps its transparent corners: the rounded tile reads
@@ -16,20 +20,21 @@ const write = (img, name) => img.png().toFile(path.join(pub, name))
 await write(render(96), 'favicon-96.png')
 
 // iOS never composites transparency — it pastes the icon onto black — so
-// everything that can land on a home screen is flattened onto the ink.
+// everything that can land on a home screen is flattened onto the tile colour,
+// which squares the rounded corners off instead of leaving them transparent.
 for (const [size, name] of [
   [180, 'apple-touch-icon.png'],
   [192, 'icon-192.png'],
   [512, 'icon-512.png'],
 ]) {
-  await write(render(size).flatten({ background: INK }), name)
+  await write(render(size).flatten({ background: TILE }), name)
 }
 
 // Android crops a maskable icon to roughly the central 80% circle — a radius
-// of 204.8px. The mark already sits within 171px of the centre, so it survives
-// that crop at full size and needs no inset; all the maskable variant does is
-// let the ink run to the square's edges instead of stopping at the rounded
-// corners.
-await write(render(512).flatten({ background: INK }), 'icon-512-maskable.png')
+// of 204.8px at 512. The tile's own margin keeps the mark within ~200px of the
+// centre (the outer edge of its rounded corners is the farthest point), so it
+// survives that crop at full size and needs no inset. Flattening onto the tile
+// colour makes the square full-bleed: the crop never shows a corner.
+await write(render(512).flatten({ background: TILE }), 'icon-512-maskable.png')
 
 console.log('icons written to public/')

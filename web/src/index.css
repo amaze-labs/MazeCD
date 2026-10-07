@@ -45,9 +45,9 @@
   --color-unknown: #b3bec6;
 
   /* MazeCD's own colour, and the only one on screen that is not data. It is
-     now allowed in exactly two places, both of them outside the two screens
-     the mockup governs: the mark on the sign-in screen and the button that
-     reloads a new build. The list's title, the instance tabs and the view
+     now allowed in exactly one place, outside the two screens the mockup
+     governs: the button that reloads a new build. (The sign-in screen's mark
+     is the logo SVG, in its own colours.) The list's title, the instance tabs and the view
      switch are ink on black inside hairline boxes — a blue or magenta accent
      would sit a hair from Progressing and this palette spends colour only on
      status. */

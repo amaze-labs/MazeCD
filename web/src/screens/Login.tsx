@@ -30,16 +30,9 @@ export function Login() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6">
       <div className="flex flex-col items-center gap-4">
-        {/* The mark. It used to be ArgoCD's healthy green above its
-            progressing blue: the product's own logo spoke entirely in
-            borrowed status colours, so there was nothing on any screen that
-            belonged to MazeCD rather than to the data. It is now the accent
-            over a dimmer step of itself. */}
-        <span className="flex h-14 w-7 flex-col overflow-hidden rounded-full" aria-hidden="true">
-          <span className="flex-[64] bg-accent" />
-          <span className="h-1" />
-          <span className="flex-[28] bg-accent/45" />
-        </span>
+        {/* The mark: the same SVG the browser uses as the favicon, so the
+            login screen and the home-screen icon can never drift apart. */}
+        <img src="/favicon.svg" alt="" className="h-14 w-14" />
         <h1 className="t-name text-[28px]">MazeCD</h1>
       </div>
       <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-4">
