@@ -136,6 +136,7 @@
 }
 
 html {
+  overscroll-behavior-y: none;
   color-scheme: dark;
   background: var(--color-ink);
   height: 100%;
@@ -161,7 +162,11 @@ body {
   -webkit-font-smoothing: antialiased;
   /* Figures in columns are what makes a list of ninety-nine readable. */
   font-variant-numeric: tabular-nums;
-  overscroll-behavior-y: contain;
+  /* No rubber band. iOS bounces the whole document past its top, header and
+     all, and that bounce is where the list's own pull-to-refresh lives: with
+     it off, the header stays where it is and the list draws the pull itself,
+     opening a gap under the header (see Apps.tsx). */
+  overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
   /* Scroll and swipe, but do not pinch, and do not treat a double tap as a
      request to magnify. Naming both axes rather than `manipulation` is what

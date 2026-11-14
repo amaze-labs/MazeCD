@@ -159,8 +159,18 @@ function EntryRow({ e }: { e: Entry }) {
               {app.instance}/{app.project}
             </span>
             <span className="mx-[5px] text-[var(--edge-strong)]">·</span>
-            {e.running ? 'syncing to' : e.failed ? 'failed at' : 'synced to'}{' '}
-            <span className="text-text">{rev}</span>
+            {rev ? (
+              <>
+                {e.running ? 'syncing to' : e.failed ? 'failed at' : 'synced to'}{' '}
+                <span className="text-text">{rev}</span>
+              </>
+            ) : e.running ? (
+              'syncing'
+            ) : e.failed ? (
+              'failed'
+            ) : (
+              'synced'
+            )}
           </span>
           <span className="flex-1" />
           {e.automated ? 'auto' : app.operationInitiator ? <Chip className="!h-[17px] !text-[9.5px]">{app.operationInitiator}</Chip> : null}

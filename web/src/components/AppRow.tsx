@@ -57,8 +57,15 @@ export function AppRow({ app }: { app: App }) {
           <span className="text-muted">
             {app.instance}/{app.project}
           </span>
-          <Dot />
-          {shortRev(app.revision)}
+          {/* An application whose sync has no revision yet (a Helm chart
+              never compared, say) says nothing there, rather than leaving
+              two separators with a hole between them. */}
+          {app.revision && (
+            <>
+              <Dot />
+              {shortRev(app.revision)}
+            </>
+          )}
           {app.totalResources !== undefined && (
             <>
               <Dot />

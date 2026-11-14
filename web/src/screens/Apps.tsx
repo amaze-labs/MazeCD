@@ -8,7 +8,7 @@ import { FleetCounters } from '../components/FleetCounters'
 import { AppListSkeleton } from '../components/Skeleton'
 import { bucketOf, countBy, type Bucket } from '../lib/fleet'
 import { healthRank } from '../lib/status'
-import { usePullToRefresh } from '../lib/pullToRefresh'
+import { PULL_THRESHOLD, usePullToRefresh } from '../lib/pullToRefresh'
 import { useOnline } from '../lib/online'
 import { runLimited } from '../lib/pool'
 import { toast } from '../lib/toast'
@@ -156,6 +156,33 @@ export function Apps() {
         }
       />
 
+      {/* THE PULL OPENS A GAP UNDER THE HEADER. The header stays put — it is
+          the screen's name and its one button, not part of the list — and
+          everything under it is pushed down by the drag, with what letting
+          go will do written in the space that opens. While the refresh runs
+          the gap stays open a little, so the answer has somewhere to come
+          from. */}
+      <div
+        className={`t-mono flex items-center justify-center gap-2 overflow-hidden text-[11px] text-dim ${
+          pull === 0 ? 'transition-[height] duration-200 ease-out' : ''
+        }`}
+        style={{ height: pull > 0 ? pull * 0.6 : refreshing ? 34 : 0 }}
+        aria-live="polite"
+      >
+        {(pull > 0 || refreshing) && (
+          <>
+            <RefreshCw
+              size={13}
+              strokeWidth={2}
+              className={refreshing ? 'spin' : ''}
+              style={refreshing ? undefined : { transform: `rotate(${(pull / PULL_THRESHOLD) * 270}deg)` }}
+              aria-hidden="true"
+            />
+            {refreshing ? 'refreshing' : pull >= PULL_THRESHOLD ? 'release to refresh' : 'keep pulling to refresh'}
+          </>
+        )}
+      </div>
+
       <FleetCounters
         counts={counts}
         active={filter.state}
@@ -209,8 +236,6 @@ export function Apps() {
           />
         </div>
       )}
-
-      {pull > 0 && <p className="t-mono pt-2 text-center text-[11px] text-dim">keep pulling to refresh</p>}
 
       {/* The case that matters most: one instance is unreachable and the other
           two are fine. The list below is *correct*, it is just short by one

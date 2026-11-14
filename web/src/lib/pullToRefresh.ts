@@ -13,6 +13,9 @@ import { useEffect, useRef, useState } from 'react'
  * ponytail: 40 lines of touch handling instead of a gesture library; revisit
  * only if horizontal gestures are ever added.
  */
+/** How far a finger has to drag down before letting go refreshes. */
+export const PULL_THRESHOLD = 70
+
 export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
   const [pull, setPull] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -25,7 +28,7 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
   }, [onRefresh])
 
   useEffect(() => {
-    const threshold = 70
+    const threshold = PULL_THRESHOLD
 
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0]

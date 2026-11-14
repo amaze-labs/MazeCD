@@ -264,7 +264,11 @@ export function Seg<T extends string>({
     <div
       role="tablist"
       aria-label={label}
-      className={`flex gap-px rounded-control bg-panel p-[3px] ring-1 ring-[var(--edge-strong)] ring-inset ${className}`}
+      // Each segment is as wide as its words and the spare room is shared
+      // out, so `home-utility 59` gets the width it needs instead of a
+      // quarter of the bar; when the names add up to more than the bar,
+      // it scrolls sideways rather than letting a word out of its box.
+      className={`flex gap-px overflow-x-auto overflow-y-hidden rounded-control bg-panel p-[3px] ring-1 ring-[var(--edge-strong)] ring-inset [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
       {options.map((o) => {
         const on = o.value === value
@@ -274,7 +278,7 @@ export function Seg<T extends string>({
             role="tab"
             aria-selected={on}
             onClick={() => onChange(o.value)}
-            className={`t-mono flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-segment px-2 text-[11.5px] whitespace-nowrap ${
+            className={`t-mono flex h-[30px] flex-auto items-center justify-center gap-1 rounded-segment px-2.5 text-[11.5px] whitespace-nowrap ${
               on ? 'bg-solid text-on-solid' : 'text-muted active:bg-raised'
             }`}
           >
