@@ -144,6 +144,7 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
           # Attestations would show up as extra `unknown/unknown` entries in
           # the manifest list; nothing here consumes them.
           provenance: false
