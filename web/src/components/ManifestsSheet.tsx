@@ -4,6 +4,7 @@ import { Button, Callout, EmptyState, Fact } from './ui'
 import { SheetListSkeleton } from './Skeleton'
 import { useManifests } from '../api/queries'
 import { shortRev } from '../lib/rev'
+import { toYaml } from '../lib/manifest'
 
 /**
  * DESIRED MANIFESTS — what Git renders, before anything is applied.
@@ -26,10 +27,8 @@ import { shortRev } from '../lib/rev'
  * is the *inventory* — which objects this application is made of — and then
  * one of them. So the list is bands, and a band opens the object under it.
  *
- * The bodies are pretty-printed JSON rather than YAML. Every manifest arrives
- * as a JSON string, and a YAML emitter that gets quoting subtly wrong prints
- * a manifest that is not the manifest — which on this screen is worse than
- * braces.
+ * The bodies are YAML, printed by `toYaml` — see there for why the quoting is
+ * left to a library and done to YAML 1.1 rules.
  */
 
 /** `kind` and `metadata.name` out of one rendered manifest, so a band can
@@ -46,7 +45,7 @@ function describe(raw: string): { kind: string; name: string; body: string } {
     return {
       kind: group ? `${group}/${o.kind ?? 'object'}` : (o.kind ?? 'object'),
       name: o.metadata?.name ?? '—',
-      body: JSON.stringify(o, null, 2),
+      body: toYaml(o),
     }
   } catch {
     return { kind: 'unreadable', name: 'could not be parsed', body: raw }

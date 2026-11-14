@@ -7,6 +7,7 @@ import { useInstances } from '../api/queries'
 import { listResourceActions, resourceParams, runResourceAction } from '../api/actions'
 import { streamLogs } from '../lib/logs'
 import { useOnline } from '../lib/online'
+import { prettyManifest } from '../lib/manifest'
 import { toast } from '../lib/toast'
 import { Button, KindIcon, StatusBadge } from './ui'
 import type { InstanceInfo, ResourceNode } from '../api/types'
@@ -349,7 +350,7 @@ function Manifest({ instance, app, node }: { instance: string; app: string; node
     )
   return (
     <pre className="t-mono max-h-[50dvh] overflow-auto rounded-control bg-ink p-3 text-[11px] leading-relaxed text-muted">
-      {q.data?.manifest ?? ''}
+      {prettyManifest(q.data?.manifest)}
     </pre>
   )
 }
