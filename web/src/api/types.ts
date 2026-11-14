@@ -21,6 +21,14 @@ export type App = {
    * newest `status.history[]` entry. Absent when the application has never
    * been operated on, which a row must draw as unknown rather than as "now". */
   operationFinishedAt?: string
+  /** The rest of the last operation, for the Activity screen — see the Go
+   * fields in `internal/argocd/apps.go`. The revision is the one applied,
+   * or, while still running, the one asked for; the initiator is a username
+   * or `automated`. */
+  operationStartedAt?: string
+  operationMessage?: string
+  operationRevision?: string
+  operationInitiator?: string
   /** `len(status.resources)`. Absent means the instance never reported a
    * resources list at all; 0 means it reported an empty one. Those are
    * different facts, so the row draws them differently: a placed mark for the
@@ -88,6 +96,11 @@ export type AppDetail = {
       message?: string
       startedAt?: string
       finishedAt?: string
+      operation?: {
+        sync?: { revision?: string }
+        initiatedBy?: { username?: string; automated?: boolean }
+      }
+      syncResult?: { revision?: string }
     }
     conditions?: { type: string; message: string }[]
     resources?: (ResourceRef & { version?: string; status?: SyncStatus; health?: { status: Health } })[]

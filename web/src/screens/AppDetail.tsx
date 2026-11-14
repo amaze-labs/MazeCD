@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
+  ChevronRight,
   CornerDownRight,
   EllipsisVertical,
   GitCompareArrows,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useAppDetail, useApps, useResourceTree } from '../api/queries'
 import { Groups, refKey, Tree } from '../components/Tree'
-import { AutoMark, Button, Callout, Fact, Rail, SyncWord } from '../components/ui'
+import { AutoMark, Badge, Button, Callout, Chip, Facts, IconButton, Seg, SyncWord, tint } from '../components/ui'
 import { AppDetailSkeleton, TreeSkeleton } from '../components/Skeleton'
 import { Sheet } from '../components/Sheet'
 import { ResourceSheet } from '../components/ResourceSheet'
@@ -50,6 +51,7 @@ export function AppDetailScreen() {
   const [menu, setMenu] = useState(false)
   const [stopping, setStopping] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
   const [events, setEvents] = useState(false)
   const [sync, setSync] = useState(false)
   const [diff, setDiff] = useState(false)
@@ -62,6 +64,8 @@ export function AppDetailScreen() {
   const health = status?.health?.status ?? ''
   const when = ago(op?.finishedAt)
   const auto = spec?.syncPolicy?.automated != null
+  const hs = stateStyle(health)
+  const loudHealth = healthLoud(health)
 
   const qc = useQueryClient()
 
@@ -158,27 +162,29 @@ export function AppDetailScreen() {
 
   return (
     <div>
-      <div className="pt-safe flex items-center justify-between pr-2 pl-2.5">
-        <Link to="/" className="t-mono flex h-12 items-center gap-2 px-1.5 text-[12.5px]">
-          <ChevronLeft size={12} strokeWidth={1.4} aria-hidden="true" />
-          Applications
-        </Link>
+      <div className="pt-safe flex items-center justify-between pr-3.5 pb-2 pl-2">
+        {/* Back to wherever the application was opened from — the list,
+            Attention or Activity — and to the list when it was opened cold,
+            from a link, with nothing in this app's history to go back to. */}
+        <button
+          onClick={() => (location.key === 'default' ? navigate('/') : navigate(-1))}
+          className="t-mono flex h-10 items-center gap-1 px-1.5 text-[13px]"
+        >
+          <ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />
+          Back
+        </button>
         {/* Everything this screen can do that is not Refresh. The hard
             refresh used to live on a 600ms press with a tooltip explaining
             it; a press timer is not an affordance, and the events were a tab
             competing with the resource list for the same strip. Both are
             entries in one menu now, which is what the ⋮ is for. */}
-        <button
-          onClick={() => setMenu(true)}
-          aria-label="More"
-          className="grid size-11 place-items-center text-muted"
-        >
-          <EllipsisVertical size={16} aria-hidden="true" />
-        </button>
+        <IconButton onClick={() => setMenu(true)} aria-label="More">
+          <EllipsisVertical size={17} strokeWidth={2} aria-hidden="true" />
+        </IconButton>
       </div>
 
       {detail.isError ? (
-        <div className="mx-4">
+        <div className="mx-3.5">
           <Callout
             icon={<ServerOff size={17} strokeWidth={2} />}
             title="Could not load this application"
@@ -195,176 +201,169 @@ export function AppDetailScreen() {
         <AppDetailSkeleton />
       ) : (
         <>
-          {/* THE RAIL APPEARS EXACTLY ONCE ON THIS SCREEN, beside the name,
-              where all three of its states are real. A resource further down
-              has health and sync but no auto-sync of its own, so a rail there
-              would be half a mark pretending to be a whole one. */}
-          <div className="flex gap-[13px] pt-1.5 pr-4 pb-4 pl-[13px]">
-            <Rail health={health} auto={auto} />
-            <div className="min-w-0 flex-1">
-              <div className="t-mono mb-[3px] text-[11px] text-dim">
-                <span className="text-muted">{instance}</span>
-                <i className="sep" aria-hidden="true" />
-                {spec?.project}
+          {/* THE APPLICATION, AS A CARD. Where it lives, its name, then its
+              three states as badges — health, sync, auto-sync — and, when its
+              health is loud, ArgoCD's reason in a band along the bottom. The
+              card's edge takes the colour of a degraded application, so the
+              screen says it before a word is read. */}
+          <section
+            className="card mx-3.5 overflow-hidden"
+            style={
+              loudHealth
+                ? {
+                    borderColor: tint(hs.color, 'var(--tint-outline)'),
+                    boxShadow: `0 0 0 3px ${tint(hs.color, 'var(--tint-row)')}`,
+                  }
+                : undefined
+            }
+          >
+            <div className="px-3.5 pt-3 pb-3">
+              <div className="flex flex-wrap gap-1.5">
+                <Chip>{instance}</Chip>
+                {spec?.project && <Chip>{spec.project}</Chip>}
               </div>
-              <h1 className="mb-[7px] text-[26px] leading-[1.05] font-semibold tracking-[-0.025em]">
-                {name}
-              </h1>
-              <div className="t-mono flex flex-wrap items-center gap-[9px] text-[12px]">
-                <span
-                  className="font-sans text-[14px] font-[560]"
-                  style={{ color: stateStyle(health).color }}
-                >
-                  {stateStyle(health).label}
-                </span>
-                <i className="sep !mx-px" aria-hidden="true" />
+              <h1 className="t-title mt-2 mb-2.5 text-[28px] [overflow-wrap:anywhere]">{name}</h1>
+              <div className="t-mono flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                <Badge state={health || 'Unknown'} className="!h-[22px] !px-2" />
                 {/* THE SYNC VERDICT IS THE BUTTON, and the diff is behind it.
                     `OutOfSync` is the one word in this product that asks a
-                    question — *what is different?* — and it has been asking it
-                    on every yellow row since the app was built, while the only
-                    answer was a laptop. Putting that answer in the ⋮ menu
-                    would leave the question visible and the answer hidden; the
-                    word itself is where a thumb already goes. It is boxed in
-                    the control hairline because in this design roundness is
-                    the whole affordance: if a corner is soft, you can press
-                    it. Pressable in every state, not only the yellow one — the
+                    question — *what is different?* — so the word itself is
+                    where the answer opens. Pressable in every state: the
                     operator who wants to be told nothing differs is the one
                     who has just pressed Synchronize. */}
                 <button
                   onClick={() => setDiff(true)}
                   aria-label="See what differs from Git"
-                  className="-my-1.5 flex h-10 items-center rounded-control px-2.5 ring-1 ring-rule"
+                  className="flex h-[26px] items-center gap-1 rounded-badge bg-panel px-2 ring-1 ring-[var(--edge-strong)] ring-inset active:bg-raised"
                 >
                   <SyncWord sync={status?.sync?.status ?? ''} />
+                  <ChevronRight size={12} strokeWidth={2} className="text-dim" aria-hidden="true" />
                 </button>
-                <i className="sep !mx-px" aria-hidden="true" />
-                {/* On the detail there is room to say it in words, so the
-                    bolt is not asked to carry the whole fact alone. */}
-                <AutoMark auto={auto} verbose />
+                <span className="flex h-[26px] items-center rounded-badge px-2 ring-1 ring-rule ring-inset">
+                  <AutoMark auto={auto} verbose />
+                </span>
               </div>
-              {status?.health?.message && healthLoud(health) && (
-                <p
-                  className="mt-2 flex gap-[7px] text-[11px] leading-[1.35]"
-                  style={{ color: stateStyle(health).color }}
-                >
-                  <CornerDownRight
-                    size={11}
-                    strokeWidth={1.2}
-                    className="mt-0.5 flex-none"
-                    aria-hidden="true"
-                  />
-                  {status.health.message}
-                </p>
-              )}
             </div>
-          </div>
-
-          {/* The key/value table: hairline rules, no container, no radius, no
-              fill. A tinted rounded panel is exactly what got an earlier
-              attempt rejected. Fields with no value are not drawn at all — a
-              column of em-dashes is not a specification. */}
-          <dl className="m-0 border-y border-rule">
-            <Fact label="namespace" value={spec?.destination.namespace} />
-            <Fact label="repository" value={spec?.source?.repoURL} />
-            <Fact label="target rev" value={spec?.source?.targetRevision} />
-            <Fact label="cluster" value={spec?.destination.server} />
-            <Fact label="revision" value={shortRev(status?.sync?.revision)} />
-            {op && (
-              <Fact label="finished">
-                {op.phase && (
-                  <span
-                    className={
-                      op.phase === 'Failed'
-                        ? 'text-degraded'
-                        : op.phase === 'Succeeded'
-                          ? 'text-healthy'
-                          : 'text-progressing'
-                    }
-                  >
-                    {op.phase.toLowerCase()}{' '}
-                  </span>
-                )}
-                {when?.long ?? 'not recorded'}
-              </Fact>
+            {status?.health?.message && loudHealth && (
+              <p
+                className="t-mono flex gap-1.5 border-t px-3.5 py-2 text-[11.5px] leading-[1.4]"
+                style={{
+                  color: hs.color,
+                  background: tint(hs.color, 'var(--tint-soft)'),
+                  borderColor: tint(hs.color, 'var(--tint-outline)'),
+                }}
+              >
+                <CornerDownRight size={13} strokeWidth={2.2} className="mt-px flex-none" aria-hidden="true" />
+                {status.health.message}
+              </p>
             )}
-            <Fact label="message" value={op?.message} prose />
-          </dl>
+          </section>
 
-          {/* TWO ACTIONS THAT ARE NOT EQUALS, on one row.
-              Refresh keeps the width it had when it was the only thing in the
-              product: it is pressed twenty times a day, ArgoCD counts it as a
-              read, and the biggest target should be the safest one. Sync is
-              the smaller of the two — not because it matters less, but because
-              it must not be the button the thumb lands on by accident, and
-              because it does not act when pressed. Its ellipsis says so: it
-              opens the sheet, and the sheet is where the weight of this
-              decision was deliberately put. */}
-          <div className="flex gap-2.5 px-4 py-4.5">
-            <Button className="flex-1" onClick={() => void act(false)} disabled={!online}>
-              <RefreshCw size={13} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
+          {/* The key/value card. Fields with no value are not drawn at all —
+              a card of em-dashes is not a specification. */}
+          <Facts
+            className="mx-3.5 mt-2"
+            items={[
+              { label: 'namespace', value: spec?.destination.namespace },
+              { label: 'target rev', value: spec?.source?.targetRevision },
+              { label: 'revision', value: shortRev(status?.sync?.revision) },
+              {
+                label: 'last sync',
+                node: op ? (
+                  <>
+                    {op.phase && (
+                      <span
+                        className={
+                          op.phase === 'Failed' || op.phase === 'Error'
+                            ? 'text-degraded'
+                            : op.phase === 'Succeeded'
+                              ? 'text-healthy'
+                              : 'text-progressing'
+                        }
+                      >
+                        {op.phase.toLowerCase()}{' '}
+                      </span>
+                    )}
+                    {when?.long ?? ''}
+                  </>
+                ) : undefined,
+              },
+              { label: 'repository', value: spec?.source?.repoURL, wide: true },
+              { label: 'cluster', value: spec?.destination.server, wide: true },
+              { label: 'message', value: op?.message, wide: true, prose: true },
+            ]}
+          />
+
+          {/* TWO ACTIONS THAT ARE NOT EQUALS, on one row. Refresh is the safe
+              one, pressed twenty times a day, and ArgoCD counts it as a read.
+              Sync is the family's dark primary — but it does not act when
+              pressed: its ellipsis says it opens the sheet, and the sheet is
+              where the weight of the decision was deliberately put. */}
+          <div className="mx-3.5 mt-2 grid grid-cols-2 gap-2">
+            <Button onClick={() => void act(false)} disabled={!online}>
+              <RefreshCw size={15} strokeWidth={2} className={busy ? 'spin' : ''} aria-hidden="true" />
               Refresh
             </Button>
-            <Button onClick={() => setSync(true)} disabled={!online}>
-              {/* The same glyph the word OutOfSync wears three lines above:
-                  this is the button that answers it. */}
-              <GitCompareArrows size={13} strokeWidth={1.35} aria-hidden="true" />
+            <Button tone="strong" onClick={() => setSync(true)} disabled={!online}>
+              <GitCompareArrows size={15} strokeWidth={2} aria-hidden="true" />
               Sync…
             </Button>
           </div>
         </>
       )}
 
-      <div className="flex items-center justify-between gap-2.5 border-b border-rule px-4 py-3.5">
-        <span className="t-mono text-[11px] leading-[1.6] text-dim">
-          resources
-          <br />
-          <b className="font-normal text-text">{nodes.length}</b>{' '}
-          {degraded > 0 && <span className="text-degraded">{degraded} degraded</span>}
-        </span>
-        <span className="flex items-center gap-2.5">
-          {/* Named, because three bars alone did not say "only what needs
-              looking at": the word is what the filter keeps. */}
-          <button
-            onClick={() => setOnlyLoud(!onlyLoud)}
-            aria-pressed={onlyLoud}
-            aria-label="Show only resources that need looking at"
-            className="t-mono flex h-12 flex-none items-center gap-2 rounded-control px-3 text-[12px] text-muted ring-1 ring-rule"
-            style={onlyLoud ? { boxShadow: 'inset 0 0 0 1px var(--edge-active)', color: 'var(--color-text)' } : undefined}
-          >
-            <ListFilter size={15} strokeWidth={1.3} aria-hidden="true" />
-            issues
-          </button>
-          {/* A pill containing two pills, the active one carrying an inset ink
-              ring rather than a fill. */}
-          <span className="flex rounded-control ring-1 ring-rule" role="tablist">
-            {(['grouped', 'tree'] as View[]).map((v) => (
-              <button
-                key={v}
-                id={`tab-${v}`}
-                role="tab"
-                aria-selected={view === v}
-                aria-controls="tabpanel"
-                onClick={() => setView(v)}
-                className={`t-mono flex h-[46px] items-center gap-1.5 rounded-segment px-[15px] text-[11.5px] ${
-                  view === v ? 'text-text' : 'text-dim'
-                }`}
-                style={view === v ? { boxShadow: 'inset 0 0 0 1px var(--edge-active)' } : undefined}
-              >
-                {v === 'tree' && <ListTree size={12} strokeWidth={1.2} aria-hidden="true" />}
-                {v === 'grouped' ? 'Grouped' : 'Tree'}
-              </button>
-            ))}
-          </span>
-        </span>
+      <div className="mx-3.5 mt-5 mb-2 flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="t-name text-[19px] leading-none">Resources</h2>
+          <p className="t-mono mt-1 text-[10.5px] text-muted">
+            {nodes.length}
+            {degraded > 0 && (
+              <>
+                {' · '}
+                <span className="text-degraded">{degraded} degraded</span>
+              </>
+            )}
+          </p>
+        </div>
+        {/* Named, because a funnel alone did not say "only what needs
+            looking at": the word is what the filter keeps. */}
+        <button
+          onClick={() => setOnlyLoud(!onlyLoud)}
+          aria-pressed={onlyLoud}
+          aria-label="Show only resources that need looking at"
+          className={`t-mono flex h-9 flex-none items-center gap-1.5 rounded-control px-2.5 text-[11.5px] ring-1 ring-inset ${
+            onlyLoud ? 'bg-solid text-on-solid ring-transparent' : 'bg-panel text-muted ring-[var(--edge-strong)]'
+          }`}
+        >
+          <ListFilter size={14} strokeWidth={2} aria-hidden="true" />
+          issues
+        </button>
+        <Seg
+          label="Resource view"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'grouped', label: 'Grouped' },
+            {
+              value: 'tree',
+              label: (
+                <>
+                  <ListTree size={12} strokeWidth={2} aria-hidden="true" />
+                  Tree
+                </>
+              ),
+            },
+          ]}
+        />
       </div>
 
       {/* A tablist with nothing it points to is a dead end for a screen
           reader: nothing says which region the two tabs above switch, and
           nothing marks it as a panel at all. One panel, not two, because
           exactly one of the views below is ever mounted at a time. */}
-      <div id="tabpanel" role="tabpanel" aria-labelledby={`tab-${view}`} tabIndex={-1}>
+      <div id="tabpanel" role="tabpanel" aria-label={view === 'grouped' ? 'Grouped' : 'Tree'} tabIndex={-1}>
         {tree.isError ? (
-          <div className="mx-4 mt-3">
+          <div className="mx-3.5">
             <Callout
               icon={<ServerOff size={17} strokeWidth={2} />}
               title="Could not load the resource tree"

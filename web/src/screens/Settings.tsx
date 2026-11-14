@@ -4,7 +4,8 @@ import type { LucideIcon } from 'lucide-react'
 import { useInstances } from '../api/queries'
 import { api } from '../api/client'
 import { useAuth } from '../lib/auth'
-import { Button, EmptyState, InstancePill, tint } from '../components/ui'
+import { Badge, Button, EmptyState, InstancePill, Seg, tint } from '../components/ui'
+import { ScreenHeader } from '../components/ScreenHeader'
 import { setTheme, useThemeChoice, type ThemeChoice } from '../lib/theme'
 import type { InstanceInfo } from '../api/types'
 
@@ -41,25 +42,24 @@ export function Settings() {
   })
 
   return (
-    <div className="px-4">
-      <header className="pt-safe pb-4">
-        <h1 className="t-name text-[19px]">Settings</h1>
-      </header>
+    <div>
+      <ScreenHeader title="Settings" sub={`${(instances.data ?? []).length} instances`} />
+      <div className="px-3.5">
 
       <section>
-        <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">Instances</h2>
+        <h2 className="t-label !text-[10px]">Instances</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted">
           These come from the configuration file mounted into MazeCD. To change one, edit the file
           and restart the server.
         </p>
-        <ul className="mt-3 flex flex-col gap-0.5">
+        <ul className="card mt-3 flex flex-col overflow-hidden">
           {(instances.data ?? []).map((i) => {
             const state = link(i)
             const StateIcon = state.icon
             return (
               <li
                 key={i.name}
-                className="flex items-center gap-3 rounded-card bg-panel px-3 py-2.5 shadow-[var(--shadow-card)]"
+                className="flex items-center gap-3 px-3 py-2.5 [&+&]:border-t [&+&]:border-rule"
               >
                 <span
                   className="flex size-9 shrink-0 items-center justify-center rounded-control"
@@ -75,18 +75,13 @@ export function Settings() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <InstancePill name={i.name} color={i.color} />
                     {i.production && (
-                      <span className="inline-flex h-6 items-center rounded-pill px-2 text-[12px] font-medium text-outofsync ring-1 ring-outofsync/65">
-                        production
-                      </span>
+                      <Badge state="OutOfSync" label="production" />
                     )}
                     <span
-                      className="inline-flex h-6 items-center gap-1.5 rounded-pill px-2 text-[12px] font-medium"
-                      style={{
-                        boxShadow: `inset 0 0 0 1px ${tint(state.color, 'var(--tint-outline)')}`,
-                        color: state.color,
-                      }}
+                      className="t-mono inline-flex h-[19px] items-center gap-1 rounded-badge px-1.5 text-[9.5px] font-semibold tracking-[0.09em] uppercase"
+                      style={{ background: tint(state.color, 'var(--tint-soft)'), color: state.color }}
                     >
-                      <StateIcon size={13} strokeWidth={2.2} aria-hidden="true" />
+                      <StateIcon size={11} strokeWidth={2.4} aria-hidden="true" />
                       {state.word}
                     </span>
                   </div>
@@ -113,41 +108,31 @@ export function Settings() {
       </section>
 
       <section className="mt-6">
-        <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">
-          Appearance
-        </h2>
+        <h2 className="t-label !text-[10px]">Appearance</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted">
           MazeCD follows the phone unless you tell it otherwise. The choice is remembered on this
           device.
         </p>
-        <div
-          className="mt-3 flex gap-1 rounded-control bg-panel p-1 shadow-[var(--shadow-card)]"
-          role="group"
-          aria-label="Theme"
-        >
-          {THEMES.map(({ value, label, icon: Icon }) => {
-            const on = theme === value
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setTheme(value)}
-                className={`flex h-11 flex-1 items-center justify-center gap-2 rounded-[8px] text-[14px] font-medium transition-colors ${
-                  on ? 'text-text ring-1 ring-rule' : 'text-muted hover:text-text'
-                }`}
-              >
-                <Icon size={16} strokeWidth={2.2} aria-hidden="true" />
+        <Seg
+          label="Theme"
+          className="mt-3"
+          value={theme}
+          onChange={setTheme}
+          options={THEMES.map(({ value, label, icon: Icon }) => ({
+            value,
+            label: (
+              <>
+                <Icon size={14} strokeWidth={2.2} aria-hidden="true" />
                 {label}
-              </button>
-            )
-          })}
-        </div>
+              </>
+            ),
+          }))}
+        />
       </section>
 
       <section className="mt-6">
-        <h2 className="text-[12px] font-semibold tracking-wider text-muted uppercase">Build</h2>
-        <dl className="mt-2 flex flex-col gap-1 rounded-card bg-panel px-3 py-2.5 text-[14px] shadow-[var(--shadow-card)]">
+        <h2 className="t-label !text-[10px]">Build</h2>
+        <dl className="card mt-2 flex flex-col gap-1 px-3 py-2.5 text-[14px]">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Server</dt>
             <dd className="t-mono text-[13px]">{version.data?.version ?? '…'}</dd>
@@ -165,6 +150,7 @@ export function Settings() {
           Sign out
         </Button>
       </section>
+      </div>
     </div>
   )
 }

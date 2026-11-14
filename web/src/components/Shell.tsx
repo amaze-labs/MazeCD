@@ -2,7 +2,9 @@ import { Link, useLocation, useNavigationType } from 'react-router-dom'
 import { useEffect, type ReactNode } from 'react'
 import { useOnline } from '../lib/online'
 import { useLiveApps } from '../lib/live'
-import { LayoutList, SlidersHorizontal } from 'lucide-react'
+import { Activity, LayoutList, SlidersHorizontal, TriangleAlert } from 'lucide-react'
+import { useApps } from '../api/queries'
+import { bucketOf } from '../lib/fleet'
 
 export function Shell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
@@ -11,6 +13,11 @@ export function Shell({ children }: { children: ReactNode }) {
   // One place, above every screen: the streams follow the session, not the
   // route, so navigating between the list and a detail never drops them.
   useLiveApps()
+  const apps = useApps()
+  // What the Attention tab holds, counted where the whole app can see it: the
+  // number on the tab is the first thing read on opening MazeCD, and zero is
+  // said by its absence.
+  const attention = (apps.data?.apps ?? []).filter((a) => bucketOf(a) !== 'Healthy').length
 
   /**
    * A NEW SCREEN STARTS AT THE TOP. THE ONE YOU CAME BACK TO DOES NOT.
@@ -29,27 +36,30 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (navigation === 'PUSH') window.scrollTo(0, 0)
   }, [pathname, navigation])
-  const tab = (to: string, label: string, icon: ReactNode) => {
-    const on = pathname === to
+  const tab = (to: string, label: string, icon: ReactNode, count = 0) => {
+    // The list owns the application screens it opens, so its tab stays lit
+    // while one of them is on screen.
+    const on = pathname === to || (to === '/' && pathname.startsWith('/apps/'))
     return (
       <Link
         to={to}
         aria-current={on ? 'page' : undefined}
-        // Ink on black, not the accent. This bar is on screen for the whole
-        // of both screens the design governs, and that palette spends colour
-        // only on status -- a magenta strip above ninety-nine status rows is
-        // the loudest non-data thing in the product.
+        aria-label={count > 0 ? `${label}, ${count}` : undefined}
         className={`relative flex flex-1 flex-col items-center gap-1 pt-2.5 pb-1 ${
           on ? 'text-text' : 'text-dim'
         }`}
       >
-        {on && (
-          <span
-            className="absolute top-0 h-0.5 w-6 bg-text"
-            aria-hidden="true"
-          />
-        )}
-        {icon}
+        {/* The logo's orange, and the only place it is spent on a screen
+            that is not the logo: a status colour here would read as one. */}
+        {on && <span className="absolute top-0 h-[3px] w-7 rounded-b-sm bg-brand" aria-hidden="true" />}
+        <span className="relative">
+          {icon}
+          {count > 0 && (
+            <b className="t-mono absolute -top-1.5 left-3.5 grid h-[17px] min-w-[18px] place-items-center rounded-full border-2 border-panel bg-degraded px-1 text-[9.5px] leading-none font-semibold text-on-status">
+              {count}
+            </b>
+          )}
+        </span>
         <span className="t-mono text-[10.5px] leading-[14px]">{label}</span>
       </Link>
     )
@@ -67,8 +77,10 @@ export function Shell({ children }: { children: ReactNode }) {
         )}
         {children}
       </main>
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-ink">
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-panel">
         {tab('/', 'Applications', <LayoutList size={21} aria-hidden="true" />)}
+        {tab('/attention', 'Attention', <TriangleAlert size={21} aria-hidden="true" />, attention)}
+        {tab('/activity', 'Activity', <Activity size={21} aria-hidden="true" />)}
         {tab('/settings', 'Settings', <SlidersHorizontal size={21} aria-hidden="true" />)}
       </nav>
     </div>

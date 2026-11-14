@@ -11,6 +11,12 @@ differs from Git, the manifests Git asks for — and a login you only do once.
 - **Every instance in one list** — the applications of all your ArgoCD
   instances together, with health and sync at a glance, filters by instance
   and a search over name, project and namespace.
+- **What needs a look, apart** — an Attention tab with only the applications
+  that are degraded, out of sync, progressing, suspended or unknown, grouped
+  by what is wrong and counted on the tab itself.
+- **What changed, and when** — an Activity tab with the fleet's last
+  operations by day: what synced to which revision, what failed and why,
+  and whether ArgoCD or a person started it.
 - **Live, not polled** — state arrives on ArgoCD's own watch streams, one per
   instance, closed while the app is in the background; a 30-second poll is
   only the fallback for an instance whose stream cannot be held open.
@@ -34,6 +40,8 @@ differs from Git, the manifests Git asks for — and a login you only do once.
 | **The resource tree**, as ArgoCD owns it | **What differs** between the cluster and Git |
 | ![The synchronize sheet](docs/images/sync.png) | ![The desired manifests](docs/images/manifests.png) |
 | **Synchronize** with prune, dry run and a revision | **Desired manifests**, as YAML |
+| ![Only the applications that need a look](docs/images/attention.png) | ![The fleet's last operations by day](docs/images/activity.png) |
+| **Attention**: only what needs a look, worst first | **Activity**: the last syncs, failed ones included |
 
 ## Quick start
 

@@ -129,10 +129,37 @@ func toJSON(a *App) application {
 		op := *a.Op // the handlers own a.Op; the response gets a copy
 		app.Status.OperationState = &op
 	} else {
-		app.Status.OperationState = &operationState{
-			Phase:      a.OperationPhase,
-			FinishedAt: a.OperationFinishedAt.Format(time.RFC3339),
+		// The operation the fixture's history implies: the last sync, by
+		// ArgoCD itself on an auto-synced application and by a person on a
+		// manual one, finished at OperationFinishedAt. A running one has
+		// not finished and has no result yet -- only the revision it asked
+		// for -- exactly as ArgoCD reports it.
+		op := &operationState{
+			Operation: &operationSpec{Sync: &syncOperationSpec{Revision: a.TargetRevision}},
+			Phase:     a.OperationPhase,
+			Message:   a.OperationMessage,
 		}
+		if a.AutoSync {
+			op.Operation.InitiatedBy.Automated = true
+		} else {
+			op.Operation.InitiatedBy.Username = "admin"
+		}
+		switch a.OperationPhase {
+		case "Running":
+			// Started a moment ago: a sync that has been running for days is
+			// a different (and rarer) story than the one the fixture tells.
+			op.StartedAt = time.Now().UTC().Add(-90 * time.Second).Format(time.RFC3339)
+			op.Message = "waiting for healthy state of apps/Deployment/" + a.Name
+		default:
+			if op.Phase == "" {
+				op.Phase = "Succeeded"
+				op.Message = "successfully synced (all tasks run)"
+			}
+			op.StartedAt = a.OperationFinishedAt.Add(-40 * time.Second).Format(time.RFC3339)
+			op.FinishedAt = a.OperationFinishedAt.Format(time.RFC3339)
+			op.SyncResult = &syncOperationResult{Revision: a.Revision}
+		}
+		app.Status.OperationState = op
 	}
 	return app
 }

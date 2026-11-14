@@ -89,7 +89,8 @@ type syncOperationSpec struct {
 type operationSpec struct {
 	Sync        *syncOperationSpec `json:"sync,omitempty"`
 	InitiatedBy struct {
-		Username string `json:"username,omitempty"`
+		Username  string `json:"username,omitempty"`
+		Automated bool   `json:"automated,omitempty"`
 	} `json:"initiatedBy"`
 }
 

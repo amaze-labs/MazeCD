@@ -35,6 +35,24 @@ type App struct {
 	// implying a successful deploy. RFC3339; the frontend humanises it.
 	OperationFinishedAt string `json:"operationFinishedAt,omitempty"`
 
+	// The rest of status.operationState, for the Activity screen: a feed of
+	// the fleet's last operations has to say when one that has not finished
+	// started, what a failed one said, which revision it applied and who
+	// asked for it -- and it has to say all of that from the list, because a
+	// feed that fetched every application to draw itself would be ninety-nine
+	// requests to open a tab.
+	//
+	// OperationRevision is syncResult.revision, the revision the operation
+	// actually applied; while the operation is still running there is no
+	// result yet, so it falls back to the revision the operation asked for.
+	// OperationInitiator is initiatedBy.username, or "automated" when ArgoCD
+	// started the operation itself -- the auto-sync policy says what ArgoCD
+	// *would* do, this says what happened.
+	OperationStartedAt string `json:"operationStartedAt,omitempty"`
+	OperationMessage   string `json:"operationMessage,omitempty"`
+	OperationRevision  string `json:"operationRevision,omitempty"`
+	OperationInitiator string `json:"operationInitiator,omitempty"`
+
 	// TotalResources is len(status.resources). A pointer: nil means the
 	// instance never reported a resources list at all (status.resources was
 	// absent), 0 means it reported one and it was empty -- those are
@@ -104,7 +122,21 @@ type applicationList struct {
 			} `json:"sync"`
 			OperationState *struct {
 				Phase      string `json:"phase"`
+				Message    string `json:"message"`
+				StartedAt  string `json:"startedAt"`
 				FinishedAt string `json:"finishedAt"`
+				Operation  struct {
+					Sync *struct {
+						Revision string `json:"revision"`
+					} `json:"sync"`
+					InitiatedBy struct {
+						Username  string `json:"username"`
+						Automated bool   `json:"automated"`
+					} `json:"initiatedBy"`
+				} `json:"operation"`
+				SyncResult *struct {
+					Revision string `json:"revision"`
+				} `json:"syncResult"`
 			} `json:"operationState"`
 			Resources []struct {
 				Health *struct {
@@ -155,9 +187,23 @@ func (r *Registry) Apps(ctx context.Context) AppsResponse {
 					Revision:      it.Status.Sync.Revision,
 					AutoSync:      it.Spec.SyncPolicy != nil && it.Spec.SyncPolicy.Automated != nil,
 				}
-				if it.Status.OperationState != nil {
-					app.OperationPhase = it.Status.OperationState.Phase
-					app.OperationFinishedAt = it.Status.OperationState.FinishedAt
+				if op := it.Status.OperationState; op != nil {
+					app.OperationPhase = op.Phase
+					app.OperationFinishedAt = op.FinishedAt
+					app.OperationStartedAt = op.StartedAt
+					app.OperationMessage = op.Message
+					switch {
+					case op.SyncResult != nil && op.SyncResult.Revision != "":
+						app.OperationRevision = op.SyncResult.Revision
+					case op.Operation.Sync != nil:
+						app.OperationRevision = op.Operation.Sync.Revision
+					}
+					switch {
+					case op.Operation.InitiatedBy.Automated:
+						app.OperationInitiator = "automated"
+					default:
+						app.OperationInitiator = op.Operation.InitiatedBy.Username
+					}
 				}
 				if it.Status.Resources != nil {
 					total := len(it.Status.Resources)

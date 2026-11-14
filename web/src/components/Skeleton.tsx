@@ -18,39 +18,26 @@ const NAME_WIDTHS = ['62%', '44%', '78%', '55%', '70%', '38%', '66%', '50%']
 
 function AppRowSkeleton({ i }: { i: number }) {
   return (
-    <div
-      className="flex gap-[13px] border-b border-rule py-3 pr-4 pl-[13px]"
-      aria-hidden="true"
-    >
-      {/* The rail is drawn at the rule colour rather than as a shimmering bar:
-          it is the one thing on the row that is already there before the data
-          is, and a rail with no health yet is not a state to animate. */}
-      <span className="w-[3px] flex-none self-stretch bg-rule" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2.5">
-          <span className="skel h-[17px]" style={{ width: NAME_WIDTHS[i % 8] }} />
-          <span className="skel h-3.5 w-16 flex-none" />
-        </div>
-        <div className="mt-1.5 flex items-center justify-between gap-2.5">
-          <span className="skel h-3 w-28" />
-          <span className="skel h-3 w-20 flex-none" />
-        </div>
-        <div className="mt-1.5 flex items-center justify-between gap-2.5">
-          <span className="skel h-3 w-24" />
-          <span className="skel h-3 w-16 flex-none" />
-        </div>
+    <div className="py-2 pr-3 pl-3.5 [&+&]:border-t [&+&]:border-rule" aria-hidden="true">
+      <div className="flex items-center justify-between gap-2.5">
+        <span className="skel h-[16px] rounded-[3px]" style={{ width: NAME_WIDTHS[i % 8] }} />
+        <span className="skel h-[19px] w-16 flex-none rounded-badge" />
+      </div>
+      <div className="mt-[5px] flex items-center justify-between gap-2.5">
+        <span className="skel h-2.5 w-44 rounded-[3px]" />
+        <span className="skel h-2.5 w-8 flex-none rounded-[3px]" />
       </div>
     </div>
   )
 }
 
-/** Eight rows: what fits on the phone this is built for, so the skeleton
+/** Ten rows: what fits on the phone this is built for, so the skeleton
  * fills the screen the list will fill and the page does not grow under the
  * thumb when the answer arrives. */
 export function AppListSkeleton() {
   return (
-    <div aria-hidden="true">
-      {Array.from({ length: 8 }, (_, i) => (
+    <div className="card mx-3.5 mt-2 overflow-hidden" aria-hidden="true">
+      {Array.from({ length: 10 }, (_, i) => (
         <AppRowSkeleton key={i} i={i} />
       ))}
     </div>
@@ -62,24 +49,22 @@ export function AppListSkeleton() {
 export function AppDetailSkeleton() {
   return (
     <div aria-hidden="true">
-      <div className="flex gap-[13px] pt-1.5 pr-4 pb-4 pl-[13px]">
-        <span className="w-[3px] flex-none self-stretch bg-rule" />
-        <div className="min-w-0 flex-1">
-          <span className="skel block h-3 w-24" />
-          <span className="skel mt-1.5 block h-[27px] w-[62%]" />
-          <span className="skel mt-2 block h-3.5 w-[70%]" />
-        </div>
+      <div className="card mx-3.5 px-3.5 pt-3 pb-3">
+        <span className="skel block h-[21px] w-32 rounded-badge" />
+        <span className="skel mt-2.5 block h-[28px] w-[62%] rounded-[4px]" />
+        <span className="skel mt-2.5 block h-[26px] w-[70%] rounded-badge" />
       </div>
-      <div className="border-y border-rule">
-        {Array.from({ length: 7 }, (_, i) => (
-          <div key={i} className="flex justify-between px-4 py-3 [&+&]:border-t [&+&]:border-rule">
-            <span className="skel h-3 w-20" />
-            <span className="skel h-3" style={{ width: NAME_WIDTHS[(i + 3) % 8] }} />
+      <div className="card mx-3.5 mt-2 grid grid-cols-2 gap-px overflow-hidden !bg-rule">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className={`bg-panel px-3.5 pt-2.5 pb-3 ${i >= 4 ? 'col-span-2' : ''}`}>
+            <span className="skel block h-2 w-16 rounded-[2px]" />
+            <span className="skel mt-2 block h-3 rounded-[3px]" style={{ width: NAME_WIDTHS[(i + 3) % 8] }} />
           </div>
         ))}
       </div>
-      <div className="flex px-4 py-4.5">
-        <span className="h-12 flex-1 rounded-control ring-1 ring-rule" />
+      <div className="mx-3.5 mt-2 grid grid-cols-2 gap-2">
+        <span className="card h-11" />
+        <span className="h-11 rounded-control bg-skel" />
       </div>
     </div>
   )
@@ -91,17 +76,17 @@ const GROUP_SIZES = [1, 1, 2, 1, 3]
 
 export function TreeSkeleton() {
   return (
-    <div aria-hidden="true">
+    <div className="mx-3.5 flex flex-col gap-2" aria-hidden="true">
       {GROUP_SIZES.map((n, g) => (
-        <section key={g} className="[&+&]:pt-3">
-          <div className="flex h-10 items-center bg-band px-4">
+        <section key={g} className="card overflow-hidden">
+          <div className="flex h-9 items-center border-b border-rule bg-band px-3.5">
             <span className="skel h-3 w-32" />
           </div>
-          <div className="px-4">
+          <div className="px-3.5">
             {Array.from({ length: n }, (_, i) => (
               <div
                 key={i}
-                className="flex min-h-[60px] items-center gap-3 py-2.5 [&+div]:border-t [&+div]:border-rule"
+                className="flex min-h-[54px] items-center gap-3 py-2 [&+div]:border-t [&+div]:border-rule"
               >
                 <span className="min-w-0 flex-1">
                   <span className="skel block h-3.5" style={{ width: NAME_WIDTHS[(g + i) % 8] }} />

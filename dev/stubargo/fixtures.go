@@ -18,7 +18,8 @@ type App struct {
 	Health              string // Healthy | Progressing | Degraded | Suspended | Unknown
 	HealthMessage       string
 	Sync                string // Synced | OutOfSync
-	OperationPhase      string // "" | "Running"
+	OperationPhase      string // "" | "Running" | "Failed"
+	OperationMessage    string // status.operationState.message, for a failed one
 	Revision            string
 	OperationFinishedAt time.Time // when the last sync finished; varies per app
 	ResourceCount       int       // status.resources length
@@ -76,12 +77,29 @@ var abnormal = map[string]App{
 	"platform-ingress-controller-prod": {
 		Health: "Degraded", Sync: "Synced", HealthMessage: "ImagePullBackOff: back-off pulling image",
 	},
-	"doc-archive":                        {Health: "Healthy", Sync: "OutOfSync"},
-	"orders-worker":                      {Health: "Healthy", Sync: "OutOfSync"},
+	"doc-archive": {Health: "Healthy", Sync: "OutOfSync"},
+	// The one operation in the fleet that failed: a person pressed sync, the
+	// apply was refused, and the application stays OutOfSync -- which is
+	// what a failed sync looks like in ArgoCD, and what the Activity screen
+	// has to be able to show without opening the application.
+	"orders-worker": {
+		Health: "Healthy", Sync: "OutOfSync", OperationPhase: "Failed",
+		OperationMessage: "one or more objects failed to apply, reason: admission webhook denied the request: exceeded quota: requests.cpu",
+	},
 	"cert-manager":                       {Health: "Healthy", Sync: "OutOfSync"},
 	"file-share":                         {Health: "Progressing", Sync: "Synced", OperationPhase: "Running"},
 	"image-updater":                      {Health: "Suspended", Sync: "Synced"},
 	"log-aggregation-pipeline-collector": {Health: "Unknown", Sync: "Synced"},
+}
+
+// lastOperation pins when the last operation of a few applications ended,
+// over the age the hash would give them, so the Activity screen opens on a
+// realistic morning: the failed sync of last night near the top rather than
+// a month down the feed.
+var lastOperation = map[string]time.Duration{
+	"orders-worker": 14 * time.Hour,
+	"doc-archive":   5 * time.Hour,
+	"orders-api":    2 * time.Hour,
 }
 
 // manual pins the fleet's handful of applications that ArgoCD will NOT
@@ -170,6 +188,10 @@ func buildApps() []*App {
 			}
 			if o, ok := abnormal[n]; ok {
 				a.Health, a.Sync, a.OperationPhase, a.HealthMessage = o.Health, o.Sync, o.OperationPhase, o.HealthMessage
+				a.OperationMessage = o.OperationMessage
+			}
+			if d, ok := lastOperation[n]; ok {
+				a.OperationFinishedAt = buildTime.Add(-d)
 			}
 			// Only apps actually on fire carry unhealthy resources -- most
 			// applications, including the merely OutOfSync/Progressing/

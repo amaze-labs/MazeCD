@@ -43,6 +43,40 @@ describe('toApp', () => {
     expect(toApp('home', { ...a, spec: { ...a.spec, syncPolicy: {} } }).autoSync).toBe(false)
   })
 
+  test('the last operation is read the way the Go mapping reads it', () => {
+    const a = argoApp('grafana', 'Healthy')
+    const running = toApp('home', {
+      ...a,
+      status: {
+        ...a.status,
+        operationState: {
+          phase: 'Running',
+          startedAt: '2026-11-14T09:41:00Z',
+          message: 'waiting for healthy state',
+          operation: { sync: { revision: 'def5678' }, initiatedBy: { automated: true } },
+        },
+      },
+    })
+    expect(running).toMatchObject({
+      operationStartedAt: '2026-11-14T09:41:00Z',
+      operationMessage: 'waiting for healthy state',
+      operationRevision: 'def5678',
+      operationInitiator: 'automated',
+    })
+    const done = toApp('home', {
+      ...a,
+      status: {
+        ...a.status,
+        operationState: {
+          phase: 'Failed',
+          operation: { sync: { revision: 'main' }, initiatedBy: { username: 'admin' } },
+          syncResult: { revision: '0123abc' },
+        },
+      },
+    })
+    expect(done).toMatchObject({ operationRevision: '0123abc', operationInitiator: 'admin' })
+  })
+
   test('an application ArgoCD has said nothing about yet reads as empty, not undefined', () => {
     const bare = { metadata: { name: 'x', namespace: 'argocd' }, spec: { project: 'p', destination: {} }, status: {} } as AppDetail
     expect(toApp('home', bare)).toMatchObject({ health: '', sync: '', revision: '', destServer: '' })

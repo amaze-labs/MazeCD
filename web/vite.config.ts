@@ -25,8 +25,8 @@ export default defineConfig({
         name: 'MazeCD',
         short_name: 'MazeCD',
         description: 'Multi-instance ArgoCD control',
-        theme_color: '#000000',
-        background_color: '#000000',
+        theme_color: '#0b0d10',
+        background_color: '#0b0d10',
         display: 'standalone',
         // Honoured by Android. iOS ignores it for an installed web app and
         // offers no API to lock it; there, this is a statement of intent.

@@ -34,6 +34,12 @@ export function bucketOf(a: { health: Health; sync: SyncStatus }): Bucket {
   return 'Healthy'
 }
 
+/** The state a row's badge and rail say: the triage bucket, except that a
+ * degraded or unknown row names its own health — Degraded or Missing, or
+ * whatever ArgoCD called a state it could not place. */
+export const verdictOf = (a: { health: Health; sync: SyncStatus }, bucket: Bucket = bucketOf(a)): string =>
+  bucket === 'Degraded' || bucket === 'Unknown' ? a.health || 'Unknown' : bucket
+
 /** The buckets whose rows take a tinted surface, and so a lighter muted. */
 export const tinted = (bucket: Bucket) => bucket === 'Degraded' || bucket === 'OutOfSync'
 

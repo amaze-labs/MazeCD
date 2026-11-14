@@ -100,6 +100,14 @@ export function toApp(instance: string, a: AppDetail): App {
     revision: a.status.sync?.revision ?? '',
     operationPhase: a.status.operationState?.phase,
     operationFinishedAt: a.status.operationState?.finishedAt,
+    operationStartedAt: a.status.operationState?.startedAt,
+    operationMessage: a.status.operationState?.message,
+    operationRevision:
+      a.status.operationState?.syncResult?.revision ||
+      a.status.operationState?.operation?.sync?.revision,
+    operationInitiator: a.status.operationState?.operation?.initiatedBy?.automated
+      ? 'automated'
+      : a.status.operationState?.operation?.initiatedBy?.username,
     // Same distinction the Go mapping makes, for the same reason: no
     // resources list at all is `undefined`, an empty one is 0, and a row
     // draws those two differently. Resources that report no health object

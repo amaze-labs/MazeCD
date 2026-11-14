@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronRight, CircleCheck } from 'lucide-react'
 import { Sheet } from './Sheet'
-import { Button, Fact, Mark } from './ui'
+import { Button, Facts, Mark } from './ui'
 import { refKey } from './Tree'
 // The same guardrail the resource actions use, and deliberately not a second
 // one: its unknown-state handling is the part that matters, and there must be
@@ -334,10 +334,12 @@ export function SyncSheet({
 
   return (
     <Sheet open onClose={onClose} title="Synchronize">
-      <dl className="m-0 -mx-4 border-b border-rule">
-        <Fact label="application" value={name} />
-        <Fact label="from" value={detail.spec?.source?.repoURL} />
-      </dl>
+      <Facts
+        items={[
+          { label: 'application', value: name, wide: true },
+          { label: 'from', value: detail.spec?.source?.repoURL, wide: true },
+        ]}
+      />
 
       <label className="t-mono mt-3.5 mb-1.5 block text-[11px] text-dim" htmlFor="sync-revision">
         revision

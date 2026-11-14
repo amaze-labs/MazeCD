@@ -5,6 +5,8 @@ import { Shell } from './components/Shell'
 import { Apps } from './screens/Apps'
 import { AppDetailScreen } from './screens/AppDetail'
 import { Settings } from './screens/Settings'
+import { Attention } from './screens/Attention'
+import { Activity } from './screens/Activity'
 import { AutoUpdate } from './components/AutoUpdate'
 import { Toasts } from './components/Toasts'
 
@@ -20,6 +22,8 @@ function Routed() {
         <Routes>
           <Route path="/" element={<Apps />} />
           <Route path="/apps/:instance/:name" element={<AppDetailScreen />} />
+          <Route path="/attention" element={<Attention />} />
+          <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

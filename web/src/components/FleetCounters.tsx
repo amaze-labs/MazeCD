@@ -1,5 +1,6 @@
 import type { Bucket } from '../lib/fleet'
 import { stateStyle } from '../lib/status'
+import { tint } from './ui'
 
 /** Read order is triage order, and it is the order of the bar's segments too,
  * so a segment and its count are found in the same place. */
@@ -16,10 +17,10 @@ const ORDER: Bucket[] = ['Degraded', 'OutOfSync', 'Progressing', 'Suspended', 'U
  * segment of one application out of ninety-nine would otherwise round to
  * nothing and the fleet would look cleaner than it is.
  *
- * The counts are the same six facts read the other way, and each one filters
- * the list to itself. The ordinary reading is grey here too: the figure takes
- * its state's colour, the word stays dim, and the one being filtered on takes
- * full ink.
+ * The counts are the same six facts read the other way, one cell each in a
+ * single row, and each one filters the list to itself; the one being
+ * filtered on is lit in its own colour. A state with nobody in it keeps its
+ * cell, faded, so the six are always in the same place.
  *
  * A caveat the mockup inherits and this component is not allowed to hide:
  * health and sync are two independent axes, so an application that is Healthy
@@ -42,40 +43,46 @@ export function FleetCounters({
   if (shown.length === 0) return null
 
   return (
-    <>
-      <div className="mx-4 flex h-1 gap-0.5" aria-hidden="true">
+    <div className="card mx-3.5 px-2.5 pt-2.5 pb-2">
+      <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
         {shown.map((b) => (
           <i
             key={b}
-            className="block min-w-1 rounded-[1px]"
+            className="block min-w-1"
             style={{ background: stateStyle(b).color, flexGrow: counts[b] }}
           />
         ))}
       </div>
       <div
-        className="t-mono flex flex-wrap gap-x-[13px] gap-y-1 px-4 pt-2.5 pb-3.5 text-[10.5px] text-dim"
+        className="mt-2 grid gap-0.5"
+        style={{ gridTemplateColumns: `repeat(${ORDER.length}, minmax(0, 1fr))` }}
         role="group"
         aria-label="Filter by fleet state"
       >
-        {shown.map((b) => {
+        {ORDER.map((b) => {
           const s = stateStyle(b)
           const on = active === b
+          const none = counts[b] === 0
           return (
             <button
               key={b}
               type="button"
               aria-pressed={on}
+              disabled={none && !on}
               onClick={() => onPick(on ? '' : b)}
-              className={on ? 'text-text' : ''}
+              className={`rounded-tile px-0.5 pt-[3px] pb-1 text-center ${none ? 'opacity-45' : ''}`}
+              style={on ? { background: tint(s.color, 'var(--tint-soft)'), boxShadow: `inset 0 0 0 1px ${tint(s.color, 'var(--tint-outline)')}` } : undefined}
             >
-              <b className="font-semibold" style={{ color: s.color }}>
+              <b className="t-mono block text-[15px] leading-[1.15] font-semibold" style={{ color: none ? 'var(--color-dim)' : s.color }}>
                 {counts[b]}
-              </b>{' '}
-              {s.label.toLowerCase()}
+              </b>
+              <span className="block truncate text-[10px] font-semibold tracking-[-0.01em] text-muted [font-stretch:78%]">
+                {s.label}
+              </span>
             </button>
           )
         })}
       </div>
-    </>
+    </div>
   )
 }

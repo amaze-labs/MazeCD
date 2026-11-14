@@ -262,10 +262,25 @@ async function shootTheme(theme) {
   // deliberately a mix -- `postgres-orders` and `prometheus` are manual and
   // calm, their neighbours are automatic.
   await page.getByRole('button', { name: /healthy/i }).click()
+  await page.getByRole('button', { name: 'Search' }).click()
   await page.getByLabel('Find an application').fill('pro')
   await page.getByLabel('Find an application').blur()
   await page.waitForTimeout(250)
   await shot('07b-apps-list-manual.png')
+
+  // The two tabs built from the list alone: what needs a look, grouped by
+  // what is wrong with it, and the fleet's last operations by day.
+  await page.goto(`${base}/attention`)
+  await page.getByRole('heading', { name: 'Attention' }).waitFor()
+  await page.getByText('photo-library-ml').first().waitFor()
+  await page.waitForTimeout(200)
+  await shot('20-attention.png')
+
+  await page.goto(`${base}/activity`)
+  await page.getByRole('heading', { name: 'Activity' }).waitFor()
+  await page.getByText('orders-worker').first().waitFor()
+  await page.waitForTimeout(200)
+  await shot('21-activity.png')
 
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Settings' }).waitFor()
@@ -276,12 +291,12 @@ async function shootTheme(theme) {
   // in, reload, and shoot: the page comes back in the chosen theme against a
   // phone that still prefers the other one, which is the whole of what the
   // setting claims to do. Then hand it back to the system.
-  await page.getByRole('button', { name: theme === 'dark' ? 'Light' : 'Dark' }).click()
+  await page.getByRole('tab', { name: theme === 'dark' ? 'Light' : 'Dark' }).click()
   await page.reload()
   await page.getByRole('heading', { name: 'Settings' }).waitFor()
   await page.waitForTimeout(200)
   await shot('15-settings-theme-override.png')
-  await page.getByRole('button', { name: 'System' }).click()
+  await page.getByRole('tab', { name: 'System' }).click()
 
   // ---- the states with no fixture ---------------------------------------
   await muteStreams(page)
@@ -341,6 +356,7 @@ async function shootTheme(theme) {
   await page.unroute('**/api/apps')
   await page.goto(base)
   await page.getByRole('heading', { name: 'Applications' }).waitFor()
+  await page.getByRole('button', { name: 'Search' }).click()
   await page.getByLabel('Find an application').fill('zzzz')
   await page.getByLabel('Find an application').blur()
   await page.getByText('Nothing matches this filter').waitFor()

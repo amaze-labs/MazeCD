@@ -1,6 +1,6 @@
 import { ChevronRight, FileCode, ServerOff } from 'lucide-react'
 import { Sheet } from './Sheet'
-import { Button, Callout, EmptyState, Fact } from './ui'
+import { Button, Callout, EmptyState, Facts } from './ui'
 import { SheetListSkeleton } from './Skeleton'
 import { useManifests } from '../api/queries'
 import { shortRev } from '../lib/rev'
@@ -90,12 +90,15 @@ export function ManifestsSheet({
             What {instance} renders from Git for {name} — the desired state, whether or not the
             cluster has it yet. A resource&rsquo;s own sheet has the live copy.
           </p>
-          <dl className="m-0 -mx-4 mt-3 border-y border-rule">
-            <Fact label="revision" value={shortRevision} />
-            <Fact label="namespace" value={q.data?.namespace} />
-            <Fact label="cluster" value={q.data?.server} />
-            <Fact label="source" value={q.data?.sourceType} />
-          </dl>
+          <Facts
+            className="mt-3"
+            items={[
+              { label: 'revision', value: shortRevision },
+              { label: 'source', value: q.data?.sourceType },
+              { label: 'namespace', value: q.data?.namespace },
+              { label: 'cluster', value: q.data?.server, wide: true },
+            ]}
+          />
 
           <div className="mt-3.5 -mx-4">
             {manifests.map((raw, i) => {

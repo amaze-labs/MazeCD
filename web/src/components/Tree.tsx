@@ -112,14 +112,14 @@ export function Groups({
   if (nodes.length === 0) return <Empty />
 
   return (
-    <div>
+    <div className="mx-3.5 flex flex-col gap-2">
       {groups.map(({ kind, members, kids }) => (
-        <section key={kind} className="[&+&]:pt-3">
-          <div className="t-mono flex h-10 items-center bg-band px-4">
-            <span className="truncate text-[12px]">{kind}</span>
-            <span className="ml-auto pl-3 text-[11.5px] text-muted">{members.length}</span>
+        <section key={kind} className="card overflow-hidden">
+          <div className="t-mono flex h-9 items-center border-b border-rule bg-band px-3.5">
+            <span className="truncate text-[11.5px] font-medium">{kind}</span>
+            <span className="ml-auto pl-3 text-[11px] text-dim">{members.length}</span>
           </div>
-          <div className="px-4">
+          <div className="px-3.5">
             {members.map((n) => {
               const health = n.health?.status
               const bad = !!health && healthLoud(health)
@@ -128,11 +128,11 @@ export function Groups({
                 <button
                   key={refKey(n)}
                   onClick={() => onSelect(n)}
-                  className="flex min-h-[60px] w-full items-center gap-3 py-2.5 text-left [&+button]:border-t [&+button]:border-rule"
+                  className="flex min-h-[54px] w-full items-center gap-3 py-2 text-left [&+button]:border-t [&+button]:border-rule"
                 >
                   <span className="min-w-0 flex-1">
                     <span
-                      className={`block truncate text-[14px] leading-[1.25] font-medium tracking-[-0.005em] ${bad ? 'text-degraded' : ''}`}
+                      className={`t-name block truncate text-[15px] leading-[1.25] ${bad ? 'text-degraded' : ''}`}
                     >
                       {n.name}
                     </span>
@@ -146,7 +146,7 @@ export function Groups({
                       title={`${children} resource${children === 1 ? '' : 's'} under this one`}
                     >
                       {children}
-                      <ChevronRight size={9} strokeWidth={1.5} aria-hidden="true" />
+                      <ChevronRight size={11} strokeWidth={2} aria-hidden="true" />
                     </span>
                   )}
                   <ResourceMarks health={health} sync={syncOf(n)} />
@@ -195,9 +195,9 @@ export function Tree({
             style={{ color: health ? stateStyle(health).color : 'var(--color-suspended)' }}
             aria-hidden="true"
           >
-            <Heart size={12} strokeWidth={1.25} />
+            <Heart size={13} strokeWidth={2} />
           </span>
-          <span className={`truncate text-[14px] font-medium ${bad ? 'text-degraded' : ''}`}>
+          <span className={`t-name truncate text-[14.5px] ${bad ? 'text-degraded' : ''}`}>
             {n.name}
           </span>
           <span className="t-mono ml-auto flex-none pl-3 text-[10.5px] whitespace-nowrap text-dim">
@@ -214,7 +214,7 @@ export function Tree({
   }
 
   if (nodes.length === 0) return <Empty />
-  return <div className="px-4 pt-1.5 pb-2">{roots.map(render)}</div>
+  return <div className="card mx-3.5 px-3.5 py-1">{roots.map(render)}</div>
 }
 
 // Exported so the pure tree-building logic can be unit tested directly.

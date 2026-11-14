@@ -198,7 +198,9 @@ async function main() {
     // Still hidden: wait until the frozen row actually disagrees with the
     // stub, so what follows is a demonstrably stale view being corrected
     // rather than one that happened to be right.
-    const agrees = (shown, health) => shown.includes('Progressing') === (health === 'Progressing')
+    // Case-insensitive: the row says its state as an upper-case badge, and
+    // innerText returns the text as CSS transforms it.
+    const agrees = (shown, health) => /progressing/i.test(shown) === (health === 'Progressing')
     // Wait for the *moment* the stub flips away from what the frozen row says,
     // not merely for a disagreement: caught at the end of a phase there would
     // be only milliseconds before the stub flipped back and agreed by accident.

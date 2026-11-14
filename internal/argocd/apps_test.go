@@ -14,7 +14,9 @@ const appListJSON = `{"items":[
   "spec":{"project":"default","destination":{"server":"https://kubernetes.default.svc","namespace":"web-prod"},
           "syncPolicy":{"automated":{"prune":true,"selfHeal":true}}},
   "status":{"health":{"status":"Degraded","message":"readiness probe failed"},"sync":{"status":"OutOfSync","revision":"abc1234"},
-            "operationState":{"phase":"Running","finishedAt":"2026-09-14T08:00:00Z"},
+            "operationState":{"phase":"Running","finishedAt":"2026-09-14T08:00:00Z","startedAt":"2026-09-14T07:59:00Z",
+              "message":"waiting for healthy state of apps/Deployment/web",
+              "operation":{"sync":{"revision":"def5678"},"initiatedBy":{"automated":true}}},
             "resources":[
               {"kind":"Deployment","name":"web","health":{"status":"Degraded"}},
               {"kind":"Pod","name":"web-x2k9v","health":{"status":"Degraded"}},
@@ -26,7 +28,10 @@ const appListJSON = `{"items":[
             "resources":[]}},
  {"metadata":{"name":"nores","namespace":"argocd"},
   "spec":{"project":"default","destination":{"server":"https://kubernetes.default.svc","namespace":"nores-prod"}},
-  "status":{"health":{"status":"Healthy"},"sync":{"status":"Synced","revision":"ffffff"}}}
+  "status":{"health":{"status":"Healthy"},"sync":{"status":"Synced","revision":"ffffff"},
+            "operationState":{"phase":"Failed","message":"one or more objects failed to apply","finishedAt":"2026-09-13T18:44:00Z",
+              "operation":{"sync":{"revision":"main"},"initiatedBy":{"username":"admin"}},
+              "syncResult":{"revision":"0123abc"}}}}
 ]}`
 
 func TestAppsAggregatesAndTagsInstance(t *testing.T) {
@@ -73,6 +78,20 @@ func TestAppsAggregatesAndTagsInstance(t *testing.T) {
 	}
 	if web.HealthMessage != "readiness probe failed" {
 		t.Errorf("HealthMessage = %q, want \"readiness probe failed\"", web.HealthMessage)
+	}
+	// Running: no syncResult yet, so the revision is the one asked for, and
+	// ArgoCD started it itself.
+	if web.OperationStartedAt != "2026-09-14T07:59:00Z" {
+		t.Errorf("OperationStartedAt = %q", web.OperationStartedAt)
+	}
+	if web.OperationMessage != "waiting for healthy state of apps/Deployment/web" {
+		t.Errorf("OperationMessage = %q", web.OperationMessage)
+	}
+	if web.OperationRevision != "def5678" {
+		t.Errorf("OperationRevision = %q, want the requested def5678 while running", web.OperationRevision)
+	}
+	if web.OperationInitiator != "automated" {
+		t.Errorf("OperationInitiator = %q, want automated", web.OperationInitiator)
 	}
 	if api.OperationPhase != "" {
 		t.Errorf("OperationPhase = %q, want empty when there is no operation", api.OperationPhase)
@@ -122,6 +141,20 @@ func TestAppsAggregatesAndTagsInstance(t *testing.T) {
 	// nil, distinct from api's reported zero.
 	if nores.TotalResources != nil {
 		t.Errorf("TotalResources = %v, want nil when the instance never reported resources", nores.TotalResources)
+	}
+	// Finished: the revision applied wins over the one asked for, and a
+	// person started it.
+	if nores.OperationRevision != "0123abc" {
+		t.Errorf("OperationRevision = %q, want syncResult's 0123abc", nores.OperationRevision)
+	}
+	if nores.OperationInitiator != "admin" {
+		t.Errorf("OperationInitiator = %q, want admin", nores.OperationInitiator)
+	}
+	if nores.OperationMessage != "one or more objects failed to apply" {
+		t.Errorf("OperationMessage = %q", nores.OperationMessage)
+	}
+	if api.OperationRevision != "" || api.OperationInitiator != "" {
+		t.Errorf("api has no operation, got revision %q initiator %q", api.OperationRevision, api.OperationInitiator)
 	}
 	if nores.UnhealthyResources != 0 {
 		t.Errorf("UnhealthyResources = %d, want 0", nores.UnhealthyResources)

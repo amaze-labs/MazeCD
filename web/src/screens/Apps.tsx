@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PlugZap, RefreshCw, SearchX, ServerOff, Unplug } from 'lucide-react'
+import { PlugZap, RefreshCw, Search, SearchX, ServerOff, Unplug, X } from 'lucide-react'
 import { useApps, useInstances } from '../api/queries'
 import { refreshApp } from '../api/actions'
 import { AppRow } from '../components/AppRow'
@@ -12,7 +12,8 @@ import { usePullToRefresh } from '../lib/pullToRefresh'
 import { useOnline } from '../lib/online'
 import { runLimited } from '../lib/pool'
 import { toast } from '../lib/toast'
-import { Button, Callout, EmptyState } from '../components/ui'
+import { Button, Callout, EmptyState, IconButton, Seg } from '../components/ui'
+import { ScreenHeader } from '../components/ScreenHeader'
 
 type Filter = { instance: string; state: Bucket | ''; q: string }
 
@@ -32,6 +33,7 @@ export function Apps() {
   const setFilter = (f: Filter) =>
     setParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '')), { replace: true })
   const [busy, setBusy] = useState(false)
+  const [searching, setSearching] = useState(false)
   const online = useOnline()
 
   // One way to ask again, used by the pull gesture and by every Retry on this
@@ -59,6 +61,11 @@ export function Apps() {
   const all = useMemo(() => apps.data?.apps ?? [], [apps.data])
   const counts = useMemo(() => countBy(all), [all])
   const names = useMemo(() => (instances.data ?? []).map((i) => i.name), [instances.data])
+  const perInstance = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of all) m.set(a.instance, (m.get(a.instance) ?? 0) + 1)
+    return m
+  }, [all])
 
   const visible = useMemo(() => {
     const list = all.filter((a) => {
@@ -105,32 +112,49 @@ export function Apps() {
     }
   }
 
+  const searchOpen = searching || filter.q !== ''
+
   return (
     <div>
       {/* Nothing on this screen is pinned. On an 852px phone every pinned row
           is an application the operator cannot see, and the counters, the
-          instances and the legend do their job on arrival. */}
-      <header className="pt-safe flex items-end justify-between gap-3 px-4 pb-3.5">
-        <h1 className="text-[23px] font-semibold tracking-[-0.02em]">Applications</h1>
-        <div className="t-mono pb-[3px] text-[11.5px] text-muted">
-          {/* A count of 0 beside a screen full of skeletons is a statement,
-              and it is the wrong one: nothing has been counted yet. */}
-          {apps.isLoading && !apps.data ? (
-            <span className="skel block h-3 w-16" aria-hidden="true" />
+          instances and the search do their job on arrival. */}
+      <ScreenHeader
+        title="Applications"
+        sub={
+          // A count of 0 beside a screen full of skeletons is a statement,
+          // and it is the wrong one: nothing has been counted yet.
+          apps.isLoading && !apps.data ? (
+            <span className="skel inline-block h-2.5 w-24 align-middle" aria-hidden="true" />
           ) : refreshing ? (
             'updating'
           ) : filtered ? (
             <>
-              <b className="font-semibold text-text">{visible.length}</b> of {all.length}
+              <b className="font-medium text-muted">{visible.length}</b> of {all.length}
             </>
           ) : (
             <>
-              <b className="font-semibold text-text">{all.length}</b> across {names.length || 1}{' '}
-              instance{names.length === 1 ? '' : 's'}
+              <b className="font-medium text-muted">{all.length}</b> across {names.length || 1} instance
+              {names.length === 1 ? '' : 's'} · live
             </>
-          )}
-        </div>
-      </header>
+          )
+        }
+        action={
+          // The detail screen's Refresh, for every application on the screen
+          // at once — the one thing this header does, so it is the one
+          // control in it.
+          <IconButton
+            onClick={() => void refreshAll()}
+            disabled={busy || !online || visible.length === 0}
+            aria-label={
+              filter.instance ? `Refresh every application on ${filter.instance}` : 'Refresh every application'
+            }
+            title="Refresh apps"
+          >
+            <RefreshCw size={16} strokeWidth={2} className={busy ? 'spin' : ''} aria-hidden="true" />
+          </IconButton>
+        }
+      />
 
       <FleetCounters
         counts={counts}
@@ -138,88 +162,62 @@ export function Apps() {
         onPick={(state) => setFilter({ ...filter, state })}
       />
 
-      {/* Instances: an underline, not a pill. Which server an application
-          lives on is a place, and a place is a tab. The instance colours the
-          configuration file happens to carry are not spent here — this
-          palette spends colour only on status. */}
-      <div className="t-mono flex items-center gap-3 border-b border-rule pr-4">
-        {/* Only the tabs scroll, sideways only and with no indicator: iOS
-            draws one for every overflowing axis, and a tab 1px taller than
-            its box made the row scroll vertically too. The button sits
-            outside the scrolling box, or a long row of instance names pushes
-            it off the right edge. */}
-        <div className="flex min-w-0 flex-1 gap-[22px] overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {names.length > 1 &&
-            ['', ...names].map((n) => (
-              <button
-                key={n || 'all'}
-                aria-selected={filter.instance === n}
-                role="tab"
-                onClick={() => setFilter({ ...filter, instance: n })}
-                className={`h-[46px] flex-none border-b-2 text-[12px] ${
-                  filter.instance === n ? 'border-text text-text' : 'border-transparent text-muted'
-                }`}
-              >
-                {n || 'all'}
-              </button>
-            ))}
-        </div>
-        {/* Beside the thing it acts on: the selected instance, or all of
-            them. Named for what it will do, because an icon alone read as
-            "reload the list" — which is the pull gesture's job, not this
-            one's. */}
-        <Button
-          onClick={() => void refreshAll()}
-          disabled={busy || !online || visible.length === 0}
-          className="!h-8 flex-none !px-3 !text-[11.5px]"
-          aria-label={
-            filter.instance ? `Refresh every application on ${filter.instance}` : 'Refresh every application'
-          }
-        >
-          <RefreshCw size={12} strokeWidth={1.35} className={busy ? 'spin' : ''} aria-hidden="true" />
-          Refresh apps
-        </Button>
-      </div>
-
-      {/* The mockup does not draw this, because ninety-nine rows fit in a
-          mockup and the eye is the filter there. It survives as a control in
-          the mockup's own vocabulary — 48px, 10px, a hairline, no fill —
-          rather than as the filled field it used to be. */}
-      <div className="px-4 py-3">
-        <input
-          value={filter.q}
-          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
-          placeholder="find by name, project or namespace"
-          aria-label="Find an application"
-          className="t-mono h-12 w-full rounded-control px-3.5 text-[12.5px] ring-1 ring-rule outline-none placeholder:text-dim"
-        />
-      </div>
-
-      {/* The rail's second state, said once, in words. Two swatches and a
-          sentence: the dashes are not decoration, they are the applications
-          that will sit broken until somebody goes and presses something. */}
-      <div className="flex items-center gap-[9px] border-y border-rule px-4 py-2.5 text-[10.5px] text-dim">
-        <span className="h-[13px] w-[3px] flex-none bg-dim" aria-hidden="true" />
-        <span>auto-sync</span>
-        <span
-          className="ml-2 h-[13px] w-[3px] flex-none"
-          style={{
-            background:
-              'repeating-linear-gradient(to bottom, var(--color-dim) 0 4px, transparent 4px 8px)',
+      {/* Instances, and the search beside them: a place is a tab, and a
+          search is a question asked of whatever place is chosen. */}
+      <div className="mx-3.5 mt-2 flex gap-1.5">
+        {names.length > 1 ? (
+          <Seg
+            label="Instance"
+            className="min-w-0 flex-1"
+            value={filter.instance}
+            onChange={(instance) => setFilter({ ...filter, instance })}
+            options={[
+              { value: '', label: 'all', count: all.length },
+              ...names.map((n) => ({ value: n, label: n, count: perInstance.get(n) ?? 0 })),
+            ]}
+          />
+        ) : (
+          <span className="flex-1" />
+        )}
+        <IconButton
+          onClick={() => {
+            if (searchOpen) {
+              setSearching(false)
+              setFilter({ ...filter, q: '' })
+            } else setSearching(true)
           }}
-          aria-hidden="true"
-        />
-        <span>manual — nothing moves until you press sync</span>
+          aria-label={searchOpen ? 'Close the search' : 'Search'}
+          aria-expanded={searchOpen}
+        >
+          {searchOpen ? (
+            <X size={16} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <Search size={16} strokeWidth={2} aria-hidden="true" />
+          )}
+        </IconButton>
       </div>
 
-      {pull > 0 && <p className="pt-2 text-center text-[12px] text-dim">Keep pulling to refresh</p>}
+      {searchOpen && (
+        <div className="mx-3.5 mt-2">
+          <input
+            autoFocus
+            value={filter.q}
+            onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+            placeholder="name, project or namespace"
+            aria-label="Find an application"
+            className="t-mono h-10 w-full rounded-control bg-panel px-3 text-[12.5px] ring-1 ring-[var(--edge-strong)] outline-none ring-inset placeholder:text-dim focus:ring-[var(--edge-active)]"
+          />
+        </div>
+      )}
+
+      {pull > 0 && <p className="t-mono pt-2 text-center text-[11px] text-dim">keep pulling to refresh</p>}
 
       {/* The case that matters most: one instance is unreachable and the other
           two are fine. The list below is *correct*, it is just short by one
           instance, and only this panel can say which one and offer to ask
           again. */}
       {(apps.data?.errors ?? []).map((e) => (
-        <div key={e.instance} className="mx-4 mt-3">
+        <div key={e.instance} className="mx-3.5 mt-2">
           <Callout
             icon={<Unplug size={17} strokeWidth={2} />}
             title={
@@ -240,7 +238,7 @@ export function Apps() {
       ))}
 
       {apps.isError && (
-        <div className="mx-4 mt-3">
+        <div className="mx-3.5 mt-2">
           <Callout
             icon={<ServerOff size={17} strokeWidth={2} />}
             title="MazeCD could not load the fleet"
@@ -261,7 +259,13 @@ export function Apps() {
       {apps.isLoading && !apps.data ? (
         <AppListSkeleton />
       ) : (
-        visible.map((a) => <AppRow key={`${a.instance}/${a.name}`} app={a} />)
+        visible.length > 0 && (
+          <div className="card mx-3.5 mt-2 overflow-hidden">
+            {visible.map((a) => (
+              <AppRow key={`${a.instance}/${a.name}`} app={a} />
+            ))}
+          </div>
+        )
       )}
 
       {!apps.isLoading &&

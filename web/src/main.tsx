@@ -5,6 +5,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { makeQueryClient } from './api/queries'
 import { App } from './App'
 import { initTheme } from './lib/theme'
+import '@fontsource-variable/archivo/wdth.css'
+import '@fontsource/ibm-plex-mono/latin-400.css'
+import '@fontsource/ibm-plex-mono/latin-500.css'
+import '@fontsource/ibm-plex-mono/latin-600.css'
 import './index.css'
 
 // Before the first paint, so no frame renders in the wrong theme.
