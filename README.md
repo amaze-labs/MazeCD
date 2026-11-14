@@ -1,179 +1,110 @@
 # MazeCD
 
-A mobile-first PWA for watching several ArgoCD instances from one screen: one
-aggregated application list, the resource tree, pod logs, what differs from
-git, the manifests git asks for, and a login you only do once.
+A self-hosted **mobile-first PWA for watching several ArgoCD instances from one
+screen**: one aggregated application list, the resource tree, pod logs, what
+differs from Git, the manifests Git asks for — and a login you only do once.
 
-It can also act: synchronize an application, and run a resource's own ArgoCD
-actions (restart a Deployment, create a Job from a CronJob). Those two are the
-only things in MazeCD that change a cluster, they are the only two that need
-anything beyond a read-only token, and **the token decides**: give it `get`
-alone and MazeCD is the observation instrument it started as. There is still
-no rollback, no delete and no editing of anything.
+![MazeCD: the applications of three instances in one list, an application with its resources, and what differs from Git](docs/images/overview.png)
 
-## How it works
+## What it does
 
-A single Go binary serves the API and the embedded PWA from the same origin.
-It reads its instances from a mounted YAML file and reverse-proxies your
-browser's requests to each ArgoCD API server with that instance's token
-injected, so the tokens never reach the device and no CORS configuration is
-needed on the ArgoCD side.
+- **Every instance in one list** — the applications of all your ArgoCD
+  instances together, with health and sync at a glance, filters by instance
+  and a search over name, project and namespace.
+- **Live, not polled** — state arrives on ArgoCD's own watch streams, one per
+  instance, closed while the app is in the background; a 30-second poll is
+  only the fallback for an instance whose stream cannot be held open.
+- **An application, whole** — its source and revision, the resources grouped
+  by kind or as a tree, each one's live manifest and, for a pod, its logs.
+- **What differs from Git** — a field-level diff of every resource that is out
+  of sync, and the desired manifests Git renders, before anything is applied.
+- **It can act, if the token lets it** — synchronize an application (prune,
+  dry run, a chosen revision, a subset of resources) and run a resource's own
+  ArgoCD actions, such as restarting a Deployment. Give the token `get` alone
+  and MazeCD is a read-only instrument.
+- **Light footprint** — one Go binary in one container, serving the API and
+  the embedded PWA; the ArgoCD tokens stay on the server and never reach the
+  phone.
 
-## Setup
+| | |
+| --- | --- |
+| ![The aggregated application list](docs/images/applications.png) | ![An application with its resources grouped by kind](docs/images/application.png) |
+| **Applications** from every instance, worst first | **An application**: source, revision and resources |
+| ![The resource tree](docs/images/tree.png) | ![What differs from Git](docs/images/diff.png) |
+| **The resource tree**, as ArgoCD owns it | **What differs** between the cluster and Git |
+| ![The synchronize sheet](docs/images/sync.png) | ![The desired manifests](docs/images/manifests.png) |
+| **Synchronize** with prune, dry run and a revision | **Desired manifests**, as YAML |
 
-### 1. Create an ArgoCD API token per instance
+## Quick start
 
-On each instance, add a local account:
-
-```yaml
-# argocd-cm
-data:
-  accounts.mazecd: apiKey
-```
-
-**The read-only policy.** Everything MazeCD *shows* — the list, the detail,
-the resource tree, the diff, the manifests, the refresh button, and the list
-of actions a resource offers — is `applications, get`, plus `logs, get` for
-pod logs:
-
-```yaml
-# argocd-rbac-cm
-data:
-  policy.csv: |
-    p, role:mazecd, applications, get, */*, allow
-    p, role:mazecd, logs, get, */*, allow
-    g, mazecd, role:mazecd
-```
-
-This is a legitimate way to run MazeCD, and it is the safe one: nothing on
-your phone can be made to change a cluster with this token. What you give up
-is Synchronize and the resource actions. Both are still *drawn* — the sheet
-cannot know what your token may do until it tries, and the action list itself
-is a `get` — so pressing either returns a 403 that MazeCD shows you as it
-arrived. If that is the trade you want, stop here.
-
-**To allow what MazeCD can write**, add whichever of these you actually want:
+You need Docker with the Compose plugin and an ArgoCD API token for each
+instance — [ArgoCD access](docs/argocd-access.md) shows how to create one,
+read-only or not. Save this as `docker-compose.yml`:
 
 ```yaml
-    # Synchronize
-    p, role:mazecd, applications, sync, */*, allow
-    # ...at a revision other than the application's target (the revision box
-    # in the sync sheet, when you type something else into it)
-    p, role:mazecd, applications, override, */*, allow
-    # Resource actions: one line per group/kind/action, or a wildcard
-    p, role:mazecd, applications, action/apps/Deployment/restart, */*, allow
-    p, role:mazecd, applications, action/*, */*, allow
+services:
+  mazecd:
+    image: ghcr.io/amaze-labs/mazecd:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file: .env
+    volumes:
+      - ./config.yaml:/etc/mazecd/config.yaml:ro
 ```
 
-The `*/*` is `project/application`, so `*/*` means the whole instance. Scoping
-the write lines to one project — `p, role:mazecd, applications, sync,
-platform/*, allow` — while leaving `get` on `*/*` gives a phone that can see
-everything and sync one project, which is usually the policy worth writing.
+and this as `config.yaml`, one entry per instance:
 
-Then generate the token:
+```yaml
+instances:
+  - name: prod
+    url: https://argocd.example.com
+    token: ${ARGOCD_TOKEN_PROD}
+```
+
+Choose a password and get its hash — `hash` asks for it on the terminal and
+prints the bcrypt hash — then generate a session key:
 
 ```bash
-argocd account generate-token --account mazecd
+docker run --rm -it ghcr.io/amaze-labs/mazecd:latest hash
+openssl rand -base64 32
 ```
 
-`applications, get` also covers the refresh button: ArgoCD implements
-`?refresh=` as a query parameter on the application GET. A sync's prune, force,
-replace and dry-run flags need nothing beyond `sync`; a dry run is an ordinary
-sync request that ArgoCD is told not to apply.
-
-### 2. Write the configuration
-
-Copy `config.example.yaml` to `config.yaml` and list your instances.
-
-### 3. Generate the secrets
-
-`mazecd hash` prompts for the password on the terminal and prints the bcrypt
-hash, so the password never lands in your shell history:
+Put both in `.env`, with the ArgoCD token. Keep the hash in single quotes: it
+contains `$`, which Compose would otherwise read as a variable.
 
 ```bash
-export MAZECD_PASSWORD_HASH="$(go run ./cmd/mazecd hash)"
-export MAZECD_SESSION_KEY="$(openssl rand -base64 32)"
-export ARGOCD_TOKEN_PROD=...
+MAZECD_PASSWORD_HASH='$2a$10$...'
+MAZECD_SESSION_KEY=...
+ARGOCD_TOKEN_PROD=...
 ```
 
-Once the image is built, `docker run --rm -it mazecd:dev hash` does the same
-without a Go toolchain.
-
-### 4. Run
+Then start it:
 
 ```bash
-cd docker && docker compose up --build
+docker compose up -d
 ```
 
-Open http://localhost:8080 and sign in.
+Open <http://localhost:8080> and sign in with that password. Anywhere other
+than `localhost` MazeCD has to be served over HTTPS: see
+[Installation](docs/installation.md).
 
-## Environment
+## Documentation
 
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `MAZECD_CONFIG` | no | `/etc/mazecd/config.yaml` | configuration file |
-| `MAZECD_PASSWORD_HASH` | yes | — | bcrypt hash from `mazecd hash` |
-| `MAZECD_SESSION_KEY` | yes | — | base64, ≥32 bytes, signs session cookies |
-| `ARGOCD_TOKEN_*` | per instance | — | referenced from the config as `${VAR}` |
+| | |
+| --- | --- |
+| [Installation](docs/installation.md) | Docker, Kubernetes, HTTPS and reverse proxies, upgrades, health check |
+| [Configuration](docs/configuration.md) | The instances file and every environment variable, with its default |
+| [ArgoCD access](docs/argocd-access.md) | The account and token per instance, the read-only policy, what each write needs |
+| [Development](docs/development.md) | Running from source, tests, the dev harness, releases |
 
-Rotating a token or adding an instance means updating the config or secret and
-restarting the process: configuration is read once at startup.
+## License
 
-## Releases
+Copyright © 2026 Amaze Labs
 
-Every push to `main` builds and publishes a multi-architecture image to GHCR:
+MazeCD is free software, licensed under the **GNU Affero General Public License
+v3.0 or later**; see [LICENSE](LICENSE).
 
-```
-ghcr.io/amaze-labs/mazecd:X.Y.Z      # immutable
-ghcr.io/amaze-labs/mazecd:latest
-```
-
-for `linux/amd64` and `linux/arm64`.
-
-The version comes from the conventional commits since the last tag: a breaking
-change (`feat!:`, or `BREAKING CHANGE` in the body) bumps the major, a `feat:`
-bumps the minor, and everything else — fixes, chores, docs, refactors, commits
-with no prefix — bumps the patch. The git tag is pushed only after the image
-has been published.
-
-The PWA updates itself. A client that is already open sees the new build
-within seconds of the container being replaced and reloads itself onto it --
-measured at 3.8-3.9s end to end, the deploy included; a client that was
-closed during the deployment serves the shell it had and heals at once. The
-version poll behind it runs every minute and on every return to the
-foreground, and `npm run redeploy` from `web/` is what proves all of it
-against two real images rather than a mock.
-
-## Serve it over HTTPS
-
-The session cookie is `Secure` and the service worker requires a secure
-context. `http://localhost` counts as secure for development; anywhere else,
-put MazeCD behind TLS.
-
-Do not expose MazeCD to the internet behind a proxy that hides the client
-address without first adding trusted-proxy handling: login rate limiting keys
-on the connecting address, so every client would share one bucket of five
-attempts per fifteen minutes.
-
-## Development
-
-```bash
-go test ./... -race            # backend
-cd web && npm test             # frontend
-cd web && npm run dev          # Vite on 5173, proxying /api to :8080
-```
-
-Run the backend with `MAZECD_CONFIG`, `MAZECD_PASSWORD_HASH` and
-`MAZECD_SESSION_KEY` set; the PWA build is embedded from
-`internal/web/dist`, which `npm run build` populates.
-
-## What it deliberately does not do
-
-No push notifications, no rollback or delete, no editing an application's
-spec, no ApplicationSet/Project/Repository administration, no multi-user
-support, no terminal into pods, and no passkeys — the session lasts 90 days and
-renews itself, so a login is a twice-a-year event.
-
-State arrives on ArgoCD's own watch streams, one per instance, closed while
-the tab is hidden; the 30-second poll behind them is the fallback for an
-instance whose stream cannot be held open.
+You can run, modify and self-host it freely. The AGPL's network clause means that
+if you offer a modified MazeCD to others over a network, as a hosted or managed
+service, you must also offer those users the source of your modified version.
